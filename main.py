@@ -12,8 +12,8 @@ from sklearn.model_selection import GridSearchCV
 
 def grid_search(model):
     param_grid = {
-    'n_estimators': [100, 200, 400],
-    'max_depth': [10, 30 , 50],
+    'n_estimators': [200, 250, 300, 350, 400],
+    'max_depth': [30, 40, 50, 60],
     'min_samples_split': [1, 3, 5],
     'min_samples_leaf': [1, 2, 5]
     }
