@@ -1,6 +1,7 @@
 from utils import load_config, load_dataset, load_test_dataset, print_results, save_results
 import numpy as np
 # sklearn imports
+import joblib
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import accuracy_score
@@ -79,6 +80,8 @@ if __name__ == "__main__":
     else:
         best_params = load_par(None)  # you don't need the 'model' arg here unless you want to customize
         model = RandomForestRegressor(**best_params, random_state=42)
+        model.fit(X_train, y_train)  # <--- this is what was missing
+        joblib.dump(model, "random_forest_model.pkl")
     #prediction
     if input("Predicition ?") == "yes":
         #y_pred = model.predict(X_test)
