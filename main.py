@@ -12,10 +12,10 @@ from sklearn.model_selection import GridSearchCV
 
 def grid_search(model):
     param_grid = {
-    'n_estimators': [200, 400],
-    'max_depth': [30 , 50],
-    'min_samples_split': [1, 3],
-    'min_samples_leaf': [2, 5]
+    'n_estimators': [100, 200, 400],
+    'max_depth': [10, 30 , 50],
+    'min_samples_split': [1, 3, 5],
+    'min_samples_leaf': [1, 2, 5]
     }
 
     scorer = make_scorer(mean_absolute_error, greater_is_better=False)
@@ -81,8 +81,8 @@ if __name__ == "__main__":
         best_params = load_par(None)  # you don't need the 'model' arg here unless you want to customize
         model = RandomForestRegressor(**best_params, random_state=42)
         model.fit(X_train, y_train)  # <--- this is what was missing
-        joblib.dump(model, "random_forest_model.pkl")
     #prediction
+    joblib.dump(model, "random_forest_model.pkl")
     if input("Predicition ?") == "yes":
         #y_pred = model.predict(X_test)
         pred_end = model.predict(la)
