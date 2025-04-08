@@ -48,12 +48,12 @@ def extract_extra_features(image_array, image):
     #    raise ValueError(f"Image is too small for HOG feature extraction. Image shape: {gray.shape}")
     #hog_features, _ = hog(gray_image, pixels_per_cell=(16, 16), cells_per_block=(2, 2), visualize=True)
 
-    return np.concatenate([[edge_count, max_area, mean_area], hog_features])
+    return np.concatenate([[edge_count * 50, max_area * 50, mean_area* 50], hog_features])
 
 
 def load_config():
     #/kaggle/input/data12
-    return {'data_dir': Path('./data'), 'load_rgb': False, 'downsample_factor': 10}
+    return {'data_dir': Path('./data'), 'load_rgb': False, 'downsample_factor': 5}
 
 
 def load_dataset(config, split="train"):
@@ -193,7 +193,7 @@ def grid_search(model):
     return grid_search.best_estimator_
 
 def load_par(model):
-    return {'max_depth': 30, 'learning_rate': 0.005, 'n_estimators': 5000, 'subsample': 0.8, 'colsample_bytree': 0.8, 'reg_alpha': 0.1,'reg_lambda': 1.0}
+    return {'max_depth': 50, 'learning_rate': 0.01, 'n_estimators': 1000, 'subsample': 0.8, 'colsample_bytree': 0.8, 'reg_alpha': 0.1,'reg_lambda': 1.0, 'early_stopping_rounds' : 15}
 
 def save_results(pred):
     text = "ID,Distance\n"
@@ -217,7 +217,7 @@ X_train_cp1 = cp.array(X_train)
 print("loaded Xtrain to gpu")
 y_train_cp1 = cp.array(y_train)
 print("loaded Ytrain to gpu")
-model.fit(X_train_cp1, y_train_cp1, eval_set=[(X_test_cp, y_test_cp)], early_stopping_rounds=15)
+model.fit(X_train_cp1, y_train_cp1, eval_set=[(X_test_cp, y_test_cp)])
 joblib.dump(model, "/kaggle/working/random_forest_model.pkl")
 
 import matplotlib.pyplot as plt
