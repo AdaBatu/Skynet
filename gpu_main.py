@@ -105,14 +105,14 @@ if __name__ == "__main__":
     config = load_config()
     # Load dataset: images and corresponding minimum distance values
     images, distances = load_dataset(config)
-    wololo = load_test_dataset(config)
+    images_test = load_test_dataset(config)
     print(f"[INFO]: Dataset loaded with {len(images)} samples.")
 
     # TODO: Your implementation starts here
 
     # Train-test split
     X = images
-    la = wololo
+    X_test = images_test
     y = distances
     X_train, X_test, y_train, y_test = train_test_split(X, y)
 
@@ -141,9 +141,9 @@ if __name__ == "__main__":
 
     # Prediction on test dat
     if input("Prediction? (yes/no) ") == "yes":
-        lal = cp.array(la)
+        X_test_cp_array = cp.array(X_test)
 
-        pred_end = model.predict(lal)  # Predict on the test dataset
+        pred_end = model.predict(X_test_cp_array)  # Predict on the test dataset
         # Optionally, evaluate with metrics (uncomment if needed)
         print_results(X_test, y_test)  # Evaluate with test data
         save_results(pred_end)  # Save the predictions
