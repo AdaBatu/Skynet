@@ -117,20 +117,23 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(X, y)
 
     # XGBoost model
-    model = xgb.XGBRegressor(objective='reg:squarederror', random_state=42)  # Using XGBoost Regressor
+    
 
     # Grid Search (if selected)
     if input("Grid Search? (yes/no) ") == "yes":
+        model = xgb.XGBRegressor(objective='reg:squarederror', random_state=42, verbosity=2)  # Using XGBoost Regressor
         #model = manual_grid_search(X_train, y_train, X_test, y_test)
         model = grid_search(model)
     else:
         best_params = load_par()  # Load predefined best parameters
-        model = xgb.XGBRegressor(**best_params, objective='reg:squarederror', random_state=42)  # XGBoost Regressor with best params
+        model = xgb.XGBRegressor(**best_params, objective='reg:squarederror', random_state=42, verbosity=2)  # XGBoost Regressor with best params
 
 
     # Save the trained model
     X_train_cp1 = cp.array(X_train)
+    print("loaded Xtrain to gpu")
     y_train_cp1 = cp.array(y_train)
+    print("loaded Ytrain to gpu")
     
 
     model.fit(X_train_cp1, y_train_cp1)  # Train the model
@@ -142,5 +145,5 @@ if __name__ == "__main__":
 
         pred_end = model.predict(lal)  # Predict on the test dataset
         # Optionally, evaluate with metrics (uncomment if needed)
-        # print_results(y_test, pred_end)  # Evaluate with test data
+        print_results(X_test, y_test)  # Evaluate with test data
         save_results(pred_end)  # Save the predictions
