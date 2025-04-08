@@ -1,4 +1,4 @@
-from utils import load_config, load_dataset, load_test_dataset, print_results, save_results
+from utils import load_config, load_dataset, load_test_dataset, print_results, save_results, save_model
 import numpy as np
 # sklearn imports
 import joblib
@@ -8,6 +8,7 @@ from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import KFold
 import xgboost as xgb  # Import XGBoost
+from datetime import datetime
 
 def manual_grid_search(X_train, y_train, X_test, y_test):   #Grid Search for XGB
     best_mae = float('inf')
@@ -154,7 +155,7 @@ if __name__ == "__main__":
     
 
     model.fit(X_train_cp1, y_train_cp1)  # Train the model
-    joblib.dump(model, "xgboost_model_preprocessed.pkl")
+    save_model(model)
 
     # Prediction on test dat
     if input("Prediction? (yes/no) ") == "yes":

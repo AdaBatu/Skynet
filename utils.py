@@ -11,6 +11,8 @@ from PIL import Image
 from sklearn.metrics import mean_absolute_error, r2_score
 from skimage.transform import resize
 from skimage import color
+import joblib
+from datetime import datetime
 
 IMAGE_SIZE = (300, 300)
 
@@ -133,12 +135,23 @@ def print_results(gt, pred):
 
 
 def save_results(pred):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"/data/prediction_{timestamp}.csv"
+    
     text = "ID,Distance\n"
-
     for i, distance in enumerate(pred):
         text += f"{i:03d},{distance}\n"
 
-    with open("prediction.csv", 'w') as f: 
+    with open(filename, 'w') as f:
         f.write(text)
+
+    print(f"[INFO] Saved predictions to: {filename}")
     
+
+def save_model(model):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"/models/random_forest_model_{timestamp}.pkl"
+    
+    joblib.dump(model, filename)
+    print(f"[INFO] Model saved to: {filename}")
 #gridsearch
