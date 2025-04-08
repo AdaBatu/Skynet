@@ -6,9 +6,10 @@ import cupy as cp
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import KFold
 import xgboost as xgb  # Import XGBoost
 
-def manual_grid_search(X_train, y_train, X_test, y_test):
+def manual_grid_search(X_train, y_train, X_test, y_test):   #Grid Search for XGB
     best_mae = float('inf')
     best_params = None
     best_model = None
@@ -64,9 +65,7 @@ def manual_grid_search(X_train, y_train, X_test, y_test):
     print(f"Best MAE: {best_mae}")
     return best_model
 
-
-
-def grid_search(model):
+def grid_search(model):     #GridSearch for Forest input only model returns best model
     param_grid = {
         'n_estimators': [100, 200, 400, 1000],  # Number of boosting rounds (trees)
         'max_depth': [10, 30 , 50, 80],  # Maximum depth of trees
@@ -98,6 +97,24 @@ def grid_search(model):
 def load_par():
     # Set default parameters for XGBoost
     return {'max_depth': 80, 'learning_rate': 0.1, 'n_estimators': 600, 'subsample': 0.8}
+
+def kfold(X,y,X_test,best_params):
+
+    kf = KFold(n_splits=5, shuffle=True, random_state=42)
+    model = xgb.XGBRegressor(**best_params, objective='reg:squarederror')
+    model_list = []
+    preds = []
+    for train_index in kf.split(X):
+
+        model.fit(X[train_index], y[train_index])
+        model_list.append(model)
+
+        y_pred = model.predict(X_test)
+        preds.append(y_pred)
+    
+    final_preds = np.mean(preds, axis=0)
+
+    return final_preds
 
 
 if __name__ == "__main__":
