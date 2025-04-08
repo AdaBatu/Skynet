@@ -3,7 +3,8 @@ from skimage import color
 import numpy as np
 import matplotlib.pyplot as plt
 from skimage import io
-
+import cupy as cp
+print(cp.__version__)
 # Load and process the image
 image = io.imread('data/train_images/000001.png')  # Replace with your image path
 gray_image = color.rgb2gray(image)  # Convert to grayscale

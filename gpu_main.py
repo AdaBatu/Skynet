@@ -83,8 +83,9 @@ def grid_search(model):
         scoring=scorer,
         verbose=2
     )
-    X_gpu = xgb.DMatrix(X)  # Convert to DMatrix and transfer to GPU
-    grid_search.fit(X_gpu, y)
+    X_train_cp = cp.array(X_train)
+    y_train_cp = cp.array(y_train)
+    grid_search.fit(X_train_cp, y_train_cp)
 
     print("Best parameters found:")
     print(grid_search.best_params_)
@@ -94,9 +95,9 @@ def grid_search(model):
 
     return grid_search.best_estimator_
 
-def load_par(model):
+def load_par():
     # Set default parameters for XGBoost
-    return {'max_depth': 30, 'learning_rate': 0.1, 'n_estimators': 200, 'subsample': 0.8}
+    return {'max_depth': 80, 'learning_rate': 0.1, 'n_estimators': 600, 'subsample': 0.8}
 
 
 if __name__ == "__main__":
@@ -120,23 +121,24 @@ if __name__ == "__main__":
 
     # Grid Search (if selected)
     if input("Grid Search? (yes/no) ") == "yes":
-        model = manual_grid_search(X_train, y_train, X_test, y_test)
-        #model = grid_search(model)
+        #model = manual_grid_search(X_train, y_train, X_test, y_test)
+        model = grid_search(model)
     else:
-        best_params = load_par(None)  # Load predefined best parameters
+        best_params = load_par()  # Load predefined best parameters
         model = xgb.XGBRegressor(**best_params, objective='reg:squarederror', random_state=42)  # XGBoost Regressor with best params
 
 
     # Save the trained model
-    xt_gpu = xgb.DMatrix(X_train)  # Convert to DMatrix and transfer to GPU
-    yt_gpu = xgb.DMatrix(y_train)  # Convert to DMatrix and transfer to GPU
+    X_train_cp1 = cp.array(X_train)
+    y_train_cp1 = cp.array(y_train)
+    
 
-    model.fit(xt_gpu, yt_gpu)  # Train the model
+    model.fit(X_train_cp1, y_train_cp1)  # Train the model
     joblib.dump(model, "xgboost_model_preprocessed.pkl")
 
-    # Prediction on test data
+    # Prediction on test dat
     if input("Prediction? (yes/no) ") == "yes":
-        lal = xgb.DMatrix(la)  # Convert test data to DMatrix
+        lal = cp.array(la)
 
         pred_end = model.predict(lal)  # Predict on the test dataset
         # Optionally, evaluate with metrics (uncomment if needed)
