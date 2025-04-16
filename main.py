@@ -28,8 +28,9 @@ if __name__ == "__main__":
     X_train, X_test, y_train, y_test = train_test_split(X,y)
 
     #model
-    gs = True
-    model = model_R(gs, X_train, y_train) #RF, GB, KNN, R, KRR
+    gs = False
+
+    model = model_KNN(gs, X_train, y_train) #RF, GB, KNN, R, KRR
     if gs == False:
         model.fit(X_train, y_train)
     #prediction
