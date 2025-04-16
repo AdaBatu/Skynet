@@ -38,7 +38,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="C:\Users\Lennart Gröger\Documents\Uni\VS_code\SML_Master\.venv"
+VIRTUAL_ENV="C:\Users\Ada_Book\Desktop\GitHub\Skynet\.venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

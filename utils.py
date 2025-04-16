@@ -1,4 +1,5 @@
 """Utility functions for project 1."""
+from picturework import mask_pixels_with_neighbors_gpu, apply_blue_tone_and_extract_feature, hog_area
 import yaml
 import os
 import numpy as np
@@ -12,6 +13,7 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import cv2
 from PIL import Image, ImageOps, ImageFilter
+from tqdm import tqdm
 
 IMAGE_SIZE = (300, 300)
 
@@ -64,6 +66,61 @@ def load_dataset(config, split="train"):
     distances = labels["distance"].to_numpy()
     return images, distances
 
+def load_custom_dataset(config, split="train", cum = 1):
+    labels = pd.read_csv(
+        config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
+    )
+
+    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
+        IMAGE_SIZE[1] // config["downsample_factor"]
+    )
+    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
+
+    images = np.zeros((len(labels), feature_dim))
+    all_features = []
+    progressbar = tqdm(total=len(labels), desc="Processing images")
+    for _, row in labels.iterrows():
+        image = Image.open(
+            config["data_dir"] / f"{split}_images" / f"{row['ID']}.png"
+        )
+        raw_img = image
+        if not config["load_rgb"]:
+            image = image.convert("L")
+        image = image.resize(
+            (
+                IMAGE_SIZE[0] // config["downsample_factor"],
+                IMAGE_SIZE[1] // config["downsample_factor"],
+            ),
+            resample=Image.BILINEAR,
+        )
+        raw_img = np.asarray(raw_img)
+        image_np = np.asarray(image)
+        image_flat = image_np.reshape(-1)
+        
+        match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+            case 0:
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY).reshape(-1)
+            case 1:
+                feature_vec = image_flat
+            case 2:
+                feature_vec = hog_area(raw_img,True,False).reshape(-1)
+            case 3:
+                feature_vec = hog_area(raw_img,True,True).reshape(-1)
+            case 4:
+                feature_vec = mask_pixels_with_neighbors_gpu(image_np,10).reshape(-1)
+            case 5:
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)
+            case 6:
+                feature_vec = apply_blue_tone_and_extract_feature(image_np,False).reshape(-1)
+
+
+        all_features.append(feature_vec)
+        progressbar.update(1)
+    progressbar.close()
+    images = np.vstack(all_features)
+    distances = labels["distance"].to_numpy()
+    return images, distances
+
 
 def load_test_dataset(config):
     feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
@@ -89,6 +146,55 @@ def load_test_dataset(config):
             image = np.asarray(image).reshape(-1)
             images.append(image)
 
+    return images
+
+
+def load_test_custom_dataset(config, cum):
+    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
+        IMAGE_SIZE[1] // config["downsample_factor"]
+    )
+    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
+    all_features = []
+    images = []
+    img_root = os.path.join(config["data_dir"], "test_images")
+    progressbar = tqdm(total=len(os.listdir(img_root)), desc="Processing images")
+    for img_file in sorted(os.listdir(img_root)):
+        if img_file.endswith(".png"):
+            image = Image.open(os.path.join(img_root, img_file))
+            raw_img = image
+            if not config["load_rgb"]:
+                image = image.convert("L")
+            image = image.resize(
+                (
+                    IMAGE_SIZE[0] // config["downsample_factor"],
+                    IMAGE_SIZE[1] // config["downsample_factor"],
+                ),
+                resample=Image.BILINEAR,
+            )
+            raw_img = np.asarray(raw_img)
+            image_np = np.asarray(image)
+            image_flat = image_np.reshape(-1)
+            
+            match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+                case 0:
+                    feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY).reshape(-1)
+                case 1:
+                    feature_vec = image_flat
+                case 2:
+                    feature_vec = hog_area(raw_img,True,False).reshape(-1)
+                case 3:
+                    feature_vec = hog_area(raw_img,True,True).reshape(-1)
+                case 4:
+                    feature_vec = mask_pixels_with_neighbors_gpu(image_np,10).reshape(-1)
+                case 5:
+                    feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)
+                case 6:
+                    feature_vec = apply_blue_tone_and_extract_feature(image_np,False).reshape(-1)
+                        
+            all_features.append(feature_vec)
+        progressbar.update(1)
+    images = np.vstack(all_features)
+    progressbar.close()
     return images
 
 

@@ -1,4 +1,4 @@
-from utils import load_config, load_dataset, load_test_dataset, print_results, save_results
+from utils import load_config, load_dataset, load_test_dataset, print_results, save_results, load_custom_dataset, load_test_custom_dataset
 import numpy as np
 import pandas as pd
 # sklearn imports
@@ -16,7 +16,8 @@ if __name__ == "__main__":
     # Load configs from "config.yaml"
     config = load_config()
     gs = False
-    personalized_pre_processing = False  # Set to False to use traditional approach
+    personalized_pre_processing = True  # Set to False to use traditional approach
+    preprocess_var = 6   #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if not personalized_pre_processing:
         print("Using traditional approach with pre-processed arrays")
@@ -37,32 +38,27 @@ if __name__ == "__main__":
         y_pred_ch = model.predict(X_test_ch)
 
     else:
-        print("Using pipeline approach with built-in loading")
-        labels = pd.read_csv(config["data_dir"] / "train_labels.csv")
+
+        images, distances = load_custom_dataset(config, "train", preprocess_var)  
+        X_test_ch = load_test_custom_dataset(config, preprocess_var)
         
-        # Split the labels DataFrame
-        X_train_df, X_test_df, y_train, y_test = train_test_split(
-            labels[['ID']],  # Just the ID column for image paths
-            labels["distance"]
-        )
-        
+        X_train, X_test, y_train, y_test = train_test_split(images, distances)
+
         # Model - pipeline approach
-        model = model_KNN(
+        """model = model_KNN(
             personalized_pre_processing = True, 
             gridsearch=gs,
             config=config,
             X_train=X_train_df,
             y_train=y_train
         )
+        """
+        model = model_KNN(gs, False, X_train, y_train)
+        model.fit(X_train, y_train)
         
-        # Need to prepare test data in same format
-        # For pipeline approach, X_test should be DataFrame with 'ID' column
-        y_pred = model.predict(X_test_df)
-        
-        # For challenge data you'll need to prepare similar DataFrame
-        challenge_labels = pd.read_csv(config["data_dir"] / "sample_submission.csv")
-        X_test_ch_df = challenge_labels[['ID']]
-        y_pred_ch = model.predict(X_test_ch_df)
+        # Prediction
+        y_pred = model.predict(X_test)
+        y_pred_ch = model.predict(X_test_ch)
 
     # Accuracy and saving
     print_results(y_test, y_pred)
@@ -72,5 +68,18 @@ if __name__ == "__main__":
         model.fit(images, distances)
         save_results(model.predict(X_test_ch))
     else:
-        model.fit(labels[['ID']], labels["distance"])
-        save_results(model.predict(X_test_ch_df))
+        model.fit(images, distances)
+        save_results(model.predict(X_test_ch))
+
+
+
+
+
+"""        print("Using pipeline approach with built-in loading")
+        labels = pd.read_csv(config["data_dir"] / "train_labels.csv")
+        
+        # Split the labels DataFrame
+        X_train_df, X_test_df, y_train, y_test = train_test_split(
+            labels[['ID']],  # Just the ID column for image paths
+            labels["distance"]
+        )"""
