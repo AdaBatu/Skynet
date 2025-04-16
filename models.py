@@ -12,7 +12,8 @@ from sklearn.kernel_ridge import KernelRidge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
-from utils import ImagePreprocessor
+from utils import ImagePreprocessor, load_config
+from sklearn.model_selection import GridSearchCV
 
 def load_best_params(model_name, save_dir="saved_params"):
     filepath = os.path.join(save_dir, f"best_params_{model_name}.json")
@@ -49,46 +50,39 @@ def model_KRR(gs=False, personalized_pre_processing = False ,X_train=None, y_tra
             return KernelRidge()
 
 
-from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
-from sklearn.neighbors import KNeighborsRegressor
-import numpy as np
-
-def model_KNN(gridsearch=False, personalized_pre_processing=False, X_train=None, y_train=None):
+def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None,  X_train=None, y_train=None):
     model_name = "KNeighborsRegressor"
-    random_state = 42  # Consistent seed for all models
+    random_state = 42  # Consistent seed for all model
+    
 
     if personalized_pre_processing:
-        print("Using customized KNN preprocessing pipeline")
+        # Pipeline approach - will handle its own loading
+        print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
-            ('preprocessor', ImagePreprocessor(
+            ('loader', ImagePreprocessor(
+                data_dir=config["data_dir"],
                 downsample_factor=1,
                 load_rgb=True,
-                enhance_contrast=True,
-                normalize=True
+                enhance_contrast=True
             )),
             ('scaler', StandardScaler()),
             ('dim_reduction', PCA(n_components=50)),
             ('regressor', KNeighborsRegressor())
         ])
-
+        
+        # Need to pass the label DataFrame to the pipeline
         if gridsearch:
             param_grid = {
-                'regressor__n_neighbors': [3, 5, 7, 9, 11, 13, 15],
-                'regressor__weights': ['uniform', 'distance'],
-                'regressor__p': [1, 2],
-                'dim_reduction__n_components': [30, 50, 100],
-                'preprocessor__downsample_factor': [1, 2]
+                'regressor__n_neighbors': [3,5,7],
+                'loader__downsample_factor': [1,2],
+                'dim_reduction__n_components': [30,50,100]
             }
-            best_model, best_params = grid_search_model(knn_pipeline, param_grid, X_train, y_train)
-            return best_model
+            model = GridSearchCV(knn_pipeline, param_grid)
         else:
-            best_params = load_best_params(model_name)
-            if best_params:
-                # Apply best params to all pipeline steps
-                knn_pipeline.set_params(**best_params)
-            return knn_pipeline
+            model = knn_pipeline
+            
+        model.fit(X_train, y_train)  # X_train should be DataFrame with 'ID' column
+        return model
 
     else:  # Original non-personalized processing
         if gridsearch:

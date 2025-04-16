@@ -111,46 +111,51 @@ def save_results(pred):
 from sklearn.base import BaseEstimator, TransformerMixin
 
 class ImagePreprocessor(BaseEstimator, TransformerMixin):
-    def __init__(self, downsample_factor=1, load_rgb=False, enhance_contrast=True, 
-                 edge_detection=False, normalize=True):
+    def __init__(self, data_dir, split="train", downsample_factor=1, load_rgb=False, 
+                 enhance_contrast=True, normalize=True):
+        self.data_dir = Path(data_dir)
+        self.split = split
         self.downsample_factor = downsample_factor
         self.load_rgb = load_rgb
         self.enhance_contrast = enhance_contrast
-        self.edge_detection = edge_detection
         self.normalize = normalize
-    
+        
     def fit(self, X, y=None):
         return self
-    
+        
     def transform(self, X):
+        """X should be a DataFrame with 'ID' column"""
         processed_images = []
-        for image_path in X:  # Assuming X is list of image paths
-            img = Image.open(image_path)
+        for _, row in X.iterrows():
+            # Construct full image path
+            img_path = self.data_dir / f"{self.split}_images" / f"{row['ID']}.png"
             
-            # Convert to grayscale unless RGB specifically needed
-            if not self.load_rgb:
-                img = img.convert('L')
-            
-            # Contrast enhancement
-            if self.enhance_contrast:
-                img = ImageOps.autocontrast(img)
-            
-            # Edge detection (if needed)
-            if self.edge_detection:
-                img = img.filter(ImageFilter.FIND_EDGES)
-            
-            # Resize
-            img = img.resize((
-                IMAGE_SIZE[0] // self.downsample_factor,
-                IMAGE_SIZE[1] // self.downsample_factor
-            ), Image.BILINEAR)
-            
-            # Convert to array and normalize
-            img_array = np.array(img)
-            if self.normalize:
-                img_array = img_array / 255.0
+            try:
+                img = Image.open(img_path)
                 
-            processed_images.append(img_array.flatten())
+                if not self.load_rgb:
+                    img = img.convert('L')
+                    
+                if self.enhance_contrast:
+                    img = ImageOps.autocontrast(img)
+                    
+                img = img.resize((
+                    IMAGE_SIZE[0] // self.downsample_factor,
+                    IMAGE_SIZE[1] // self.downsample_factor
+                ), Image.BILINEAR)
+                
+                img_array = np.array(img)
+                if self.normalize:
+                    img_array = img_array / 255.0
+                    
+                processed_images.append(img_array.flatten())
+                
+            except Exception as e:
+                print(f"Error processing {img_path}: {str(e)}")
+                # Return zero array if image fails to load
+                dim = (IMAGE_SIZE[0]//self.downsample_factor) * (IMAGE_SIZE[1]//self.downsample_factor)
+                dim = dim * (3 if self.load_rgb else 1)
+                processed_images.append(np.zeros(dim))
         
         return np.array(processed_images)
     
