@@ -1,0 +1,6 @@
+{
+    "alpha": 10.0,
+    "degree": 3,
+    "gamma": null,
+    "kernel": "linear"
+}

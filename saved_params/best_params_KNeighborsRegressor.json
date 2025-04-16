@@ -1,0 +1,7 @@
+{
+    "algorithm": "brute",
+    "metric_params": null,
+    "n_neighbors": 3,
+    "p": 1,
+    "weights": "distance"
+}
