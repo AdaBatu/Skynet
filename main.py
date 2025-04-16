@@ -8,7 +8,7 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 
-from models import model_GB, model_KNN, model_R, model_RF, model_KRR, model_RF_HOG
+from models import model_GB, model_KNN, model_R, model_RF, model_KRR
 
 
 if __name__ == "__main__":
@@ -29,8 +29,8 @@ if __name__ == "__main__":
 
     #model
     gs = False
-
-    model = model_RF(gs, X_train, y_train) #RF, GB, KNN, R, KRR
+    personalized_pre_processing = False
+    model = model_KNN(gs,personalized_pre_processing ,X_train, y_train) #RF, GB, KNN, R, KRR
     if gs == False:
         model.fit(X_train, y_train)
     #prediction

@@ -7,7 +7,11 @@ import pandas as pd
 from PIL import Image
 from sklearn.metrics import mean_absolute_error, r2_score
 from skimage.transform import resize
-
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+import cv2
+from PIL import Image, ImageOps, ImageFilter
 
 IMAGE_SIZE = (300, 300)
 
@@ -102,3 +106,82 @@ def save_results(pred):
     with open("prediction.csv", 'w') as f: 
         f.write(text)
 
+############################## pipeline ##########################################
+
+from sklearn.base import BaseEstimator, TransformerMixin
+
+class ImagePreprocessor(BaseEstimator, TransformerMixin):
+    def __init__(self, downsample_factor=1, load_rgb=False, enhance_contrast=True, 
+                 edge_detection=False, normalize=True):
+        self.downsample_factor = downsample_factor
+        self.load_rgb = load_rgb
+        self.enhance_contrast = enhance_contrast
+        self.edge_detection = edge_detection
+        self.normalize = normalize
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        processed_images = []
+        for image_path in X:  # Assuming X is list of image paths
+            img = Image.open(image_path)
+            
+            # Convert to grayscale unless RGB specifically needed
+            if not self.load_rgb:
+                img = img.convert('L')
+            
+            # Contrast enhancement
+            if self.enhance_contrast:
+                img = ImageOps.autocontrast(img)
+            
+            # Edge detection (if needed)
+            if self.edge_detection:
+                img = img.filter(ImageFilter.FIND_EDGES)
+            
+            # Resize
+            img = img.resize((
+                IMAGE_SIZE[0] // self.downsample_factor,
+                IMAGE_SIZE[1] // self.downsample_factor
+            ), Image.BILINEAR)
+            
+            # Convert to array and normalize
+            img_array = np.array(img)
+            if self.normalize:
+                img_array = img_array / 255.0
+                
+            processed_images.append(img_array.flatten())
+        
+        return np.array(processed_images)
+    
+class DistanceFeatureExtractor(BaseEstimator, TransformerMixin):
+    def __init__(self, extract_blur=True, extract_edges=True):
+        self.extract_blur = extract_blur
+        self.extract_edges = extract_edges
+    
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X):
+        features = []
+        for img_array in X:
+            img = img_array.reshape(IMAGE_SIZE)  # Reshape to original dimensions
+            
+            feature_dict = {}
+            
+            # Blur estimation (distance affects blur)
+            if self.extract_blur:
+                blur_value = cv2.Laplacian(img, cv2.CV_64F).var()
+                feature_dict['blur'] = blur_value
+            
+            # Edge density (closer objects have more edges)
+            if self.extract_edges:
+                edges = cv2.Canny(img, 100, 200)
+                edge_density = np.mean(edges)
+                feature_dict['edge_density'] = edge_density
+            
+            # Combine with original pixels
+            combined = np.concatenate([img_array.flatten(), list(feature_dict.values())])
+            features.append(combined)
+        
+        return np.array(features)

@@ -9,6 +9,10 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from utils import ImagePreprocessor
 
 def load_best_params(model_name, save_dir="saved_params"):
     filepath = os.path.join(save_dir, f"best_params_{model_name}.json")
@@ -45,32 +49,68 @@ def model_KRR(gs=False, personalized_pre_processing = False ,X_train=None, y_tra
             return KernelRidge()
 
 
-def model_KNN(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.decomposition import PCA
+from sklearn.neighbors import KNeighborsRegressor
+import numpy as np
+
+def model_KNN(gridsearch=False, personalized_pre_processing=False, X_train=None, y_train=None):
     model_name = "KNeighborsRegressor"
     random_state = 42  # Consistent seed for all models
 
-    if gridsearch:
-        model = KNeighborsRegressor()  # KNN doesn't use random_state
-        param_grid = {
-            'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],  # Wider range with odd numbers
-            'weights': ['distance'],  # Keep only distance to avoid voting ties
-            'algorithm': ['brute'],   # Most reproducible
-            'p': [1, 1.5, 2, 3],     # Test different distance metrics:
-                # p=1 (Manhattan), p=2 (Euclidean), 
-                # p=1.5/3 (other Minkowski distances)
-            'metric_params': [
-                None,
-                {'w': np.random.rand(X_train.shape[1])}  # Feature weights
-            ]
-        }
-        best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
-        return best_model
-    else:
-        best_params = load_best_params(model_name)
-        if best_params:
-            return KNeighborsRegressor(**best_params)
+    if personalized_pre_processing:
+        print("Using customized KNN preprocessing pipeline")
+        knn_pipeline = Pipeline([
+            ('preprocessor', ImagePreprocessor(
+                downsample_factor=1,
+                load_rgb=True,
+                enhance_contrast=True,
+                normalize=True
+            )),
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=50)),
+            ('regressor', KNeighborsRegressor())
+        ])
+
+        if gridsearch:
+            param_grid = {
+                'regressor__n_neighbors': [3, 5, 7, 9, 11, 13, 15],
+                'regressor__weights': ['uniform', 'distance'],
+                'regressor__p': [1, 2],
+                'dim_reduction__n_components': [30, 50, 100],
+                'preprocessor__downsample_factor': [1, 2]
+            }
+            best_model, best_params = grid_search_model(knn_pipeline, param_grid, X_train, y_train)
+            return best_model
         else:
-            return KNeighborsRegressor()
+            best_params = load_best_params(model_name)
+            if best_params:
+                # Apply best params to all pipeline steps
+                knn_pipeline.set_params(**best_params)
+            return knn_pipeline
+
+    else:  # Original non-personalized processing
+        if gridsearch:
+            model = KNeighborsRegressor()
+            param_grid = {
+                'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
+                'weights': ['distance'],
+                'algorithm': ['brute'],
+                'p': [1, 1.5, 2, 3],
+                'metric_params': [
+                    None,
+                    {'w': np.random.rand(X_train.shape[1])}
+                ]
+            }
+            best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
+            return best_model
+        else:
+            best_params = load_best_params(model_name)
+            if best_params:
+                return KNeighborsRegressor(**best_params)
+            else:
+                return KNeighborsRegressor()
 
 
 def model_RF(gs=False, personalized_pre_processing = False, X_train=None, y_train=None):
