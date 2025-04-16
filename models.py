@@ -1,8 +1,9 @@
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.neighbors import KNeighborsRegressor
-from grid_search import grid_search_model
+from grid_search import grid_search_model, grid_search_model_PB
 import json
 import os 
 from sklearn.pipeline import Pipeline
@@ -105,6 +106,64 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None
                 return KNeighborsRegressor(**best_params)
             else:
                 return KNeighborsRegressor()
+            
+
+
+def HIST_BOOST(gridsearch=False, personalized_pre_processing=False, config = None,  X_train=None, y_train=None):
+    model_name = "HistGradientBoostingRegressor"
+    randomi = 31  # Consistent seed for all model
+    
+
+    if personalized_pre_processing:
+        # Pipeline approach - will handle its own loading
+        print("Using full pipeline with built-in loading")
+        knn_pipeline = Pipeline([
+            ('loader', ImagePreprocessor(
+                data_dir=config["data_dir"],
+                downsample_factor=1,
+                load_rgb=True,
+                enhance_contrast=True
+            )),
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=50)),
+            ('regressor', HistGradientBoostingRegressor())
+        ])
+        
+        # Need to pass the label DataFrame to the pipeline
+        if gridsearch:
+            param_grid = {
+                'regressor__n_neighbors': [3,5,7],
+                'loader__downsample_factor': [1,2],
+                'dim_reduction__n_components': [30,50,100]
+            }
+            model = GridSearchCV(knn_pipeline, param_grid)
+        else:
+            model = knn_pipeline
+            
+        model.fit(X_train, y_train)  # X_train should be DataFrame with 'ID' column
+        return model
+
+    else:  # Original non-personalized processing
+        if gridsearch:
+            model = HistGradientBoostingRegressor(random_state=randomi)
+            param_grid = {
+                'learning_rate': [0.01, 0.05, 0.1, 0.2],
+                'n_iter_no_change': [5, 10, 20],
+                'max_iter': [100, 200, 500],
+                'max_depth': [3, 5, 7],
+                'min_samples_leaf': [5, 10, 20],
+                'max_bins': [50, 100, 255],
+                'early_stopping': [True],  # Optional, based on whether you want to use early stopping
+                'loss': ['squared_error', 'absolute_error'],  # Optional, based on your preference
+            }
+            best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
+            return best_model
+        else:
+            best_params = load_best_params(model_name)
+            if best_params:
+                return HistGradientBoostingRegressor(**best_params, random_state=randomi)
+            else:
+                return HistGradientBoostingRegressor()
 
 
 def model_RF(gs=False, personalized_pre_processing = False, X_train=None, y_train=None):

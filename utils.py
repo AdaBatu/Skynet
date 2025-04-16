@@ -14,6 +14,8 @@ from sklearn.decomposition import PCA
 import cv2
 from PIL import Image, ImageOps, ImageFilter
 from tqdm import tqdm
+import joblib
+from datetime import datetime
 
 IMAGE_SIZE = (300, 300)
 
@@ -205,12 +207,19 @@ def print_results(gt, pred):
 
 def save_results(pred):
     text = "ID,Distance\n"
-
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     for i, distance in enumerate(pred):
         text += f"{i:03d},{distance}\n"
 
-    with open("prediction.csv", 'w') as f: 
+    with open(f"prediction_{timestamp}_.csv", 'w') as f: 
         f.write(text)
+
+def save_model(model):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"models/random_forest_model_{timestamp}.pkl"
+    
+    joblib.dump(model, filename)
+    print(f"[INFO] Model saved to: {filename}")
 
 ############################## pipeline ##########################################
 
