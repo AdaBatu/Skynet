@@ -30,7 +30,7 @@ if __name__ == "__main__":
     #model
     gs = False
 
-    model = model_KNN(gs, X_train, y_train) #RF, GB, KNN, R, KRR
+    model = model_RF(gs, X_train, y_train) #RF, GB, KNN, R, KRR
     if gs == False:
         model.fit(X_train, y_train)
     #prediction

@@ -9,7 +9,6 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
-#from utils import extract_hog_features
 
 def load_best_params(model_name, save_dir="saved_params"):
     filepath = os.path.join(save_dir, f"best_params_{model_name}.json")
@@ -25,7 +24,7 @@ def load_best_params(model_name, save_dir="saved_params"):
 ### Importante: every has to be called with (gridsearch: True/False, X_train, Y_train)
 
 
-def model_KRR(gs=False, X_train=None, y_train=None):
+def model_KRR(gs=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     model_name = "KernelRidge"
     
     if gs:
@@ -46,7 +45,7 @@ def model_KRR(gs=False, X_train=None, y_train=None):
             return KernelRidge()
 
 
-def model_KNN(gridsearch=False, X_train=None, y_train=None):
+def model_KNN(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "KNeighborsRegressor"
     random_state = 42  # Consistent seed for all models
 
@@ -74,7 +73,7 @@ def model_KNN(gridsearch=False, X_train=None, y_train=None):
             return KNeighborsRegressor()
 
 
-def model_RF(gs=False, X_train=None, y_train=None):
+def model_RF(gs=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "RandomForestRegressor"
     random_state = 42
 
@@ -96,7 +95,7 @@ def model_RF(gs=False, X_train=None, y_train=None):
             return RandomForestRegressor(random_state=random_state)
 
 
-def model_GB(gridsearch=False, X_train=None, y_train=None):
+def model_GB(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "GradientBoostingRegressor"
     random_state = 42
 
@@ -124,7 +123,7 @@ def model_GB(gridsearch=False, X_train=None, y_train=None):
             return GradientBoostingRegressor(random_state=random_state)
 
 
-def model_R(gridsearch=False, X_train=None, y_train=None):
+def model_R(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
 
 
     model_name = "Ridge"
@@ -145,27 +144,3 @@ def model_R(gridsearch=False, X_train=None, y_train=None):
         else:
             return Ridge()
         
-
-
-
-def model_RF_HOG(gs=False, X_train=None, y_train=None):
-    model_name = "RF_HOG"
-    
-    # Feature extraction
-    X_feats = extract_hog_features(X_train)
-
-    if gs:
-        model = RandomForestRegressor()
-        param_grid = {
-            'n_estimators': [100, 200],
-            'max_depth': [None, 10],
-            'max_features': ['sqrt'],
-        }
-        best_model, best_params = grid_search_model(model, param_grid, X_feats, y_train)
-        return best_model
-    else:
-        best_params = load_best_params(model_name)
-        if best_params:
-            return RandomForestRegressor(**best_params)
-        else:
-            return RandomForestRegressor()
