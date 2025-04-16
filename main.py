@@ -8,8 +8,9 @@ from sklearn.metrics import accuracy_score
 from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
-
+import matplotlib.pyplot as plt
 from models import model_GB, model_KNN, model_R, model_RF, model_KRR
+import mplcursors
 
 
 if __name__ == "__main__":
@@ -17,7 +18,7 @@ if __name__ == "__main__":
     config = load_config()
     gs = False
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 6   #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 5   #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if not personalized_pre_processing:
         print("Using traditional approach with pre-processed arrays")
@@ -62,7 +63,11 @@ if __name__ == "__main__":
 
     # Accuracy and saving
     print_results(y_test, y_pred)
-    
+    y_pred = model.predict(X_test)
+    y_dif= (y_test - y_pred)*100
+    plt.hist(y_dif,density=False, color='skyblue', edgecolor='black')
+    mplcursors.cursor(hover=True)
+    plt.show()
     # Final training on all data
     if not personalized_pre_processing:
         model.fit(images, distances)

@@ -86,7 +86,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None
 
     else:  # Original non-personalized processing
         if gridsearch:
-            model = KNeighborsRegressor()
+            model = KNeighborsRegressor(random_state=31)
             param_grid = {
                 'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
                 'weights': ['distance'],
