@@ -810,6 +810,19 @@ def hog_area(image, areainf = True, hogo = True):
         return [max_area, mean_area]
 
 
+def meta_finder(image):
+    means = np.mean(image, axis=(0, 1))  # Mean across height and width
+    variances = np.var(image, axis=(0, 1))  # Variance across height and width
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    edges = cv2.Canny(gray, 50, 150)
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    areas = [cv2.contourArea(c) for c in contours]
+    max_area = max(areas) if areas else 0
+    mean_area = np.mean(areas) if areas else 0
+
+
+    return np.concatenate([means, variances, [max_area, mean_area]])
+
 
 
 def process_folder(input_dir, output_folder):

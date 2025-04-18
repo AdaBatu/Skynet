@@ -3,7 +3,9 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.neighbors import KNeighborsRegressor
-from grid_search import grid_search_model, grid_search_model_PB
+from grid_search import grid_search_model, grid_search_model_PB, bayesian_search_model_with_progress
+from picturework import meta_finder
+from skopt.space import Real, Integer, Categorical
 import json
 import os 
 from sklearn.pipeline import Pipeline
@@ -15,6 +17,61 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from utils import ImagePreprocessor, load_config
 from sklearn.model_selection import GridSearchCV
+from sklearn.linear_model import LinearRegression
+
+class DynamicWeightRegressor:
+    def __init__(self, base_models):
+        self.base_models = base_models  # Dict of model_name -> model instance
+        self.meta_model = LinearRegression()
+
+    def fit(self, X_image, X_meta, y):
+        # Train each base model
+        base_preds = []
+        for name, model in self.base_models.items():
+            model.fit(X_image, y)
+            preds = model.predict(X_image).reshape(-1, 1)
+            base_preds.append(preds)
+
+        base_preds = np.hstack(base_preds)
+
+        # Train meta-model to learn weights
+        self.meta_model.fit(X_meta, base_preds)
+
+    def predict(self, X_image, X_meta):
+        base_preds = []
+        for name, model in self.base_models.items():
+            preds = model.predict(X_image).reshape(-1, 1)
+            base_preds.append(preds)
+
+        base_preds = np.hstack(base_preds)
+        weights = self.meta_model.predict(X_meta)
+
+        # Apply weights row-wise
+        y_pred = np.sum(base_preds * weights, axis=1)
+        return y_pred
+
+
+def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False, X_train=None, y_train=None):
+    # Base models
+    X_meta_list = []
+
+    for img in X_train:
+
+        meta_features = meta_finder(img)
+        X_meta_list.append(meta_features)
+
+    X_meta = np.array(X_meta_list)
+
+
+    base_models = {
+        "Ridge": model_R(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
+        "KRR": model_KRR(gs=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
+        "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
+    }
+
+    model = DynamicWeightRegressor(base_models)
+    model.fit(X_train, X_meta, y_train)
+    return model
 
 def load_best_params(model_name, save_dir="saved_params"):
     filepath = os.path.join(save_dir, f"best_params_{model_name}.json")
@@ -30,6 +87,8 @@ def load_best_params(model_name, save_dir="saved_params"):
 ### Importante: every has to be called with (gridsearch: True/False, X_train, Y_train)
 
 
+
+
 def model_KRR(gs=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     model_name = "KernelRidge"
     
@@ -38,10 +97,22 @@ def model_KRR(gs=False, personalized_pre_processing = False ,X_train=None, y_tra
         param_grid = {
             'alpha': [0.1, 1.0, 10.0],
             'kernel': ['linear', 'rbf', 'polynomial'],
-            'gamma': [None, 0.1, 1.0],  # Only applicable for some kernels
+            'gamma': [None, 0.0001, 0.001, 0.1, 1.0],  # Only applicable for some kernels
             'degree': [3, 4],  # Only applicable for polynomial kernel
         }
-        best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
+        param_space = {
+    'alpha': Real(1e-6, 1e3, prior='log-uniform'),
+    'kernel': Categorical(['linear', 'poly', 'rbf', 'sigmoid']),
+    'degree': Integer(2, 5),
+    'coef0': Real(0.0, 1.0),
+    'gamma': Categorical(['scale', 'auto', 0.01, 0.1, 1]),
+    'tol': Real(1e-4, 1e-6, prior='log-uniform'),
+    'max_iter': Integer(100, 600),
+        }
+        if gs==2:
+            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+        else:
+            best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
         return best_model
     else:
         best_params = load_best_params(model_name)
@@ -98,20 +169,31 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None
                     {'w': np.random.rand(X_train.shape[1])}
                 ]
             }
-            best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
+            param_space = {
+    'n_neighbors': Integer(1, 50),
+    'weights': Categorical(['uniform', 'distance']),
+    'metric': Categorical(['euclidean', 'manhattan', 'cosine']),
+    'algorithm': Categorical(['auto', 'ball_tree', 'kd_tree', 'brute']),
+    'leaf_size': Integer(10, 100),
+    'p': Integer(1, 2),
+    'n_jobs': Integer(1, 4),
+            }
+            if gridsearch==2:
+                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+            else:
+                best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
             return best_model
         else:
             best_params = load_best_params(model_name)
             if best_params:
                 return KNeighborsRegressor(**best_params)
             else:
-                return KNeighborsRegressor()
-            
+                return KNeighborsRegressor()   
 
 
 def HIST_BOOST(gridsearch=False, personalized_pre_processing=False, config = None,  X_train=None, y_train=None):
     model_name = "HistGradientBoostingRegressor"
-    randomi = 31  # Consistent seed for all model
+    randomi = 42  # Consistent seed for all model
     
 
     if personalized_pre_processing:
@@ -156,7 +238,16 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False, config = Non
                 'early_stopping': [True],  # Optional, based on whether you want to use early stopping
                 'loss': ['squared_error', 'absolute_error'],  # Optional, based on your preference
             }
-            best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
+
+            param_space = {
+            'n_estimators': Integer(100, 500),
+            'max_depth': Integer(5, 30),
+            'learning_rate': Real(0.01, 0.3),
+            }
+            if gridsearch==2:
+                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+            else:
+                best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
             return best_model
         else:
             best_params = load_best_params(model_name)
