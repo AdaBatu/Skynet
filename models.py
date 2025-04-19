@@ -158,17 +158,8 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None
 
     else:  # Original non-personalized processing
         if gridsearch:
-            model = KNeighborsRegressor(random_state=31)
-            param_grid = {
-                'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
-                'weights': ['distance'],
-                'algorithm': ['brute'],
-                'p': [1, 1.5, 2, 3],
-                'metric_params': [
-                    None,
-                    {'w': np.random.rand(X_train.shape[1])}
-                ]
-            }
+            model = KNeighborsRegressor()
+
             param_space = {
     'n_neighbors': Integer(1, 50),
     'weights': Categorical(['uniform', 'distance']),
@@ -181,6 +172,16 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False, config = None
             if gridsearch==2:
                 best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
             else:
+                param_grid = {
+                'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
+                'weights': ['distance'],
+                'algorithm': ['brute'],
+                'p': [1, 1.5, 2, 3],
+                'metric_params': [
+                    None,
+                    {'w': np.random.rand(X_train.shape[1])}
+                ]
+            }
                 best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
             return best_model
         else:

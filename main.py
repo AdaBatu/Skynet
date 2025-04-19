@@ -71,8 +71,9 @@ if __name__ == "__main__":
                 y_train=y_train
             )
             """
-            #model = model_KNN(gs, False, X_train, y_train)
-            model = HIST_BOOST(gs, False, config, X_train, y_train)
+            model = model_KNN(gs, False, X_train, y_train)
+            #model = model_KRR(gs, False, X_train, y_train)
+            #model = HIST_BOOST(gs, False, config, X_train, y_train)
             
             model.fit(X_train, y_train)
             

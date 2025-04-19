@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import time
 from skimage.feature import hog
 from skimage import color
+from cupyx.scipy import ndimage as cpx_ndimage
 
 def get_color_difference_gpu(pixel1, pixel2):
     """
@@ -102,6 +103,34 @@ def mask_pixels_with_neighbors_gpu(image_rgb, color_threshold=10):
 
   # Return the processed image if needed
 
+def compute_rgb_gradient(image):
+    # Ensure the input is a CuPy array (GPU processing)
+    if isinstance(image, np.ndarray):
+        image = cp.asarray(image)
+    
+    # Separate the RGB channels
+    r_channel = image[:,:,0]
+    g_channel = image[:,:,1]
+    b_channel = image[:,:,2]
+    
+    # Compute gradients (finite difference)
+    grad_r = cp.abs(r_channel[1:, :] - r_channel[:-1, :])  # Gradient along the y-axis (vertical)
+    grad_g = cp.abs(g_channel[1:, :] - g_channel[:-1, :])  # Same for G channel
+    grad_b = cp.abs(b_channel[1:, :] - b_channel[:-1, :])  # Same for B channel
+    
+    # Padding the gradient results to match the original image size
+    grad_r = cp.pad(grad_r, ((0, 1), (0, 0)), mode='constant', constant_values=0)
+    grad_g = cp.pad(grad_g, ((0, 1), (0, 0)), mode='constant', constant_values=0)
+    grad_b = cp.pad(grad_b, ((0, 1), (0, 0)), mode='constant', constant_values=0)
+    
+    # Combine the gradients back into a single image
+    gradient_image = cp.stack([grad_r, grad_g, grad_b], axis=-1)
+    
+    # Normalize the gradients to [0, 255] range for visualization
+    gradient_image = (255 * (gradient_image / gradient_image.max())).astype(cp.uint8)
+
+    return gradient_image.get()
+
 
 def process_image_with_gpu(image_path, output_dir):
     # Load image to CPU
@@ -175,19 +204,13 @@ def process_image_with_gpu(image_path, output_dir):
     # Convert the result back to BGR format
     result_bgr = cp.asnumpy(result_gpu)
     result_bgr = cv2.cvtColor(result_bgr, cv2.COLOR_RGB2BGR)
-
-    # Ensure the output directory exists
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    # Save the result image
-    output_file = output_dir / f"{image_path.stem}_processed.png"
-    cv2.imwrite(str(output_file), result_bgr)
     
     return result_bgr
 
 
 def gpu_sobel_edge_detection(image):
+    if isinstance(image, np.ndarray):
+        image = cp.asarray(image)
 
     sobel_y = cp.array([[-1, -2, -1], 
                         [ 0,  0,  0], 
@@ -201,38 +224,21 @@ def gpu_sobel_edge_detection(image):
                                [ 2, 0, -2], 
                                [ 1, 0, -1]], dtype=cp.float32)
 
-    """
-    Perform Sobel edge detection on the image using GPU.
-    Returns the horizontal and vertical gradient images.
-    
-    # Convert image to grayscale (use only the luma component)
-    gray_image = cp.dot(image[:, :, :3], cp.array([0.2989, 0.5870, 0.1140]))  # Convert to grayscale
-    gray_image = gray_image.astype(cp.float32)
-
-    # Sobel kernels for X and Y gradients
-
-
-
-    # Apply Sobel filter in both directions (X and Y)
-    grad_diag_45 = ndimage.convolve(gray_image.get(), sobel_diag_45, mode='same')
-    grad_diag_135 = ndimage.convolve(gray_image.get(), sobel_diag_135, mode='same')
-    grad_y = ndimage.convolve(gray_image.get(), sobel_y.get(), mode='constant', cval=0.0)
-    """
     r_channel = image[:,:,0]  # Red channel
     g_channel = image[:,:,1]  # Green channel
     b_channel = image[:,:,2]  # Blue channel
 
-    grad_y_r = cp.array(ndimage.convolve(r_channel.get(), sobel_y.get(), mode='constant', cval=0.0))
-    grad_y_g = cp.array(ndimage.convolve(g_channel.get(), sobel_y.get(), mode='constant', cval=0.0))
-    grad_y_b = cp.array(ndimage.convolve(b_channel.get(), sobel_y.get(), mode='constant', cval=0.0))
+    grad_y_r = cpx_ndimage.convolve(r_channel, sobel_y, mode='constant', cval=0.0)
+    grad_y_g = cpx_ndimage.convolve(g_channel, sobel_y, mode='constant', cval=0.0)
+    grad_y_b = cpx_ndimage.convolve(b_channel, sobel_y, mode='constant', cval=0.0)
 
-    grad_diag_45_r = cp.array(ndimage.convolve(r_channel.get(), sobel_diag_45.get(), mode='constant', cval=0.0))
-    grad_diag_45_g = cp.array(ndimage.convolve(g_channel.get(), sobel_diag_45.get(), mode='constant', cval=0.0))
-    grad_diag_45_b = cp.array(ndimage.convolve(b_channel.get(), sobel_diag_45.get(), mode='constant', cval=0.0))
+    grad_diag_45_r = cpx_ndimage.convolve(r_channel, sobel_diag_45, mode='constant', cval=0.0)
+    grad_diag_45_g = cpx_ndimage.convolve(g_channel, sobel_diag_45, mode='constant', cval=0.0)
+    grad_diag_45_b = cpx_ndimage.convolve(b_channel, sobel_diag_45, mode='constant', cval=0.0)
 
-    grad_diag_135_r = cp.array(ndimage.convolve(r_channel.get(), sobel_diag_135.get(), mode='constant', cval=0.0))
-    grad_diag_135_g = cp.array(ndimage.convolve(g_channel.get(), sobel_diag_135.get(), mode='constant', cval=0.0))
-    grad_diag_135_b = cp.array(ndimage.convolve(b_channel.get(), sobel_diag_135.get(), mode='constant', cval=0.0))
+    grad_diag_135_r = cpx_ndimage.convolve(r_channel, sobel_diag_135, mode='constant', cval=0.0)
+    grad_diag_135_g = cpx_ndimage.convolve(g_channel, sobel_diag_135, mode='constant', cval=0.0)
+    grad_diag_135_b = cpx_ndimage.convolve(b_channel, sobel_diag_135, mode='constant', cval=0.0)
 
     # Combine the gradients from all three channels for each direction
     grad_y = cp.sqrt(grad_y_r**2 + grad_y_g**2 + grad_y_b**2)
@@ -241,8 +247,11 @@ def gpu_sobel_edge_detection(image):
 
     # Combine the results for horizontal and diagonal gradients
     grad_magnitude = cp.sqrt(grad_y**2 + grad_diag_45**2 + grad_diag_135**2)
-
-    return grad_magnitude
+    edges = grad_magnitude.get()
+    edges_normalized = (255 * (edges / edges.max())).astype(np.uint8)
+    edges_rgb = np.stack([edges_normalized] * 3, axis=-1)
+    result = cv2.cvtColor(edges_rgb, cv2.COLOR_RGB2GRAY)
+    return result
 
 def detect_floor_with_gpu(image_path, output_folder, edge_threshold=0.5):
     color_range=((25, 25, 25), (120, 120, 120))
@@ -330,7 +339,7 @@ def detect_floor_with_gpu(image_path, output_folder, edge_threshold=0.5):
     cv2.imwrite(str(output_file), result_bgr)
 
 
-def apply_blue_tone_to_filtered_image(image_path,output_folder):
+def apply_blue_tone_to_filtered_image(image_rgb):
     """
     Applies blue tone effect to a filtered region of the image based on color similarity and intensity decay.
 
@@ -343,17 +352,12 @@ def apply_blue_tone_to_filtered_image(image_path,output_folder):
     Returns:
         cp.ndarray: The image with the blue-toned effect applied.
     """
+    image_rgb = cp.asarray(image_rgb)
+    image_gpu = image_rgb
+
     color_range=((60, 60, 60), (110, 110, 100))
     max_color_diff=10
 
-    # Load the image
-    image_bgr = cv2.imread(str(image_path))
-    if image_bgr is None:
-        print(f"Failed to load image: {image_path}")
-        return
-    
-    # Convert image to RGB and upload it to the GPU
-    image_rgb = cp.asarray(cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB))
     height, width, _ = image_rgb.shape
 
     # Step 1: Focus on the lower 40% of the image
@@ -385,7 +389,7 @@ def apply_blue_tone_to_filtered_image(image_path,output_folder):
     #& color_diff_mask
 
     # Step 6: Apply blue-toning across the image using GPU
-    image_gpu = cp.asarray(image_rgb)
+    
     blue_height = image_rgb.shape[0] - loheight
     lower_half_mask = cp.zeros((300, 300), dtype=cp.bool_)
     lower_half_mask[blue_height:, :] = mask_gpu
@@ -475,14 +479,15 @@ def apply_blue_tone_to_filtered_image(image_path,output_folder):
     # Convert the result back to BGR format
     result_bgr = cp.asnumpy(result_gpu)
     result_bgr = cv2.cvtColor(result_bgr, cv2.COLOR_RGB2BGR)
-    """
 
 
-    output_dir = Path(output_folder)
+
+        output_dir = Path(output_folder)
     output_dir.mkdir(parents=True, exist_ok=True)
     
     output_file = output_dir / f"{image_path.stem}_processed.png"
     cv2.imwrite(str(output_file), result_bgr)
+    """
     
     return result_bgr
 
@@ -702,7 +707,7 @@ def apply_blue_tone_and_extract_feature(image_rgb, save = False, output_folder =
 
     return result_bgr
 
-def detect_floor_region(image_path, output_folder):
+def detect_floor_region(image_rgb):
     """
     Detects the region of the floor (road/driveway/hallway) in an image
     based on color gradients and blob detection.
@@ -713,15 +718,7 @@ def detect_floor_region(image_path, output_folder):
     Returns:
         image (numpy.ndarray): The image with the detected floor region outlined.
     """
-    # Load the image
-    image_bgr = cv2.imread(str(image_path))
-    if image_bgr is None:
-        print(f"Failed to load image: {image_path}")
-        return None
-
-    # Convert to LAB color space
-    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-
+    new_img = image_rgb
     # Calculate the gradient magnitude for each channel (R, G, B)
     grad_x_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 1, 0, ksize=3)
     grad_y_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 0, 1, ksize=3)
@@ -738,10 +735,9 @@ def detect_floor_region(image_path, output_folder):
     wol_display = np.round(wol_normalized.astype(np.uint8), 2)
     wol_rgb = cv2.cvtColor(wol_display, cv2.COLOR_GRAY2RGB)
 # Plot the result
-    plt.imshow(wol_display, cmap='gray')
     #plt.show() 
     #time.sleep(10)
-
+    """
     grad_mag_r = cv2.magnitude(grad_x_r, grad_y_r)
     grad_mag_g = cv2.magnitude(grad_x_g, grad_y_g)
     grad_mag_b = cv2.magnitude(grad_x_b, grad_y_b)
@@ -756,7 +752,7 @@ def detect_floor_region(image_path, output_folder):
     contours, _ = cv2.findContours(gradient_thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     # Get the contours and filter out the ones further from the bottom
-    height, width = image_bgr.shape[:2]
+    height, width = image_rgb.shape[:2]
     bottom_blob = None
     bottom_position = -1
     floor_contours = []
@@ -777,17 +773,13 @@ def detect_floor_region(image_path, output_folder):
     # Fill the floor region in the mask
     cv2.drawContours(floor_mask, floor_contours, -1, (255), thickness=cv2.FILLED)
 
+    
     # Apply the floor mask to the original image
-    floor_colored = np.zeros_like(image_bgr)
+    floor_colored = np.zeros_like(new_img)
     floor_colored[:, :] = [0, 255, 0]  # Green color for the floor region
-    image_bgr[floor_mask == 255] = floor_colored[floor_mask == 255]
-
-    output_dir = Path(output_folder)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_file = output_dir / f"{image_path.stem}.png"
-    cv2.imwrite(str(output_file), wol_rgb)
-
-    return image_bgr
+    new_img[floor_mask == 255] = floor_colored[floor_mask == 255]
+    """
+    return wol_rgb
 
 def hog_area(image, areainf = True, hogo = True):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)

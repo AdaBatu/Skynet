@@ -69,7 +69,7 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
         n_iter=50,  # Number of iterations
         cv=cv,
         n_jobs=-1,
-        verbose=1,
+        verbose=2,
         scoring=scoring,
         random_state=42     
     )

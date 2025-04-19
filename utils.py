@@ -1,5 +1,5 @@
 """Utility functions for project 1."""
-from picturework import mask_pixels_with_neighbors_gpu, apply_blue_tone_and_extract_feature, hog_area
+from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region
 import yaml
 import os
 import numpy as np
@@ -88,34 +88,32 @@ def load_custom_dataset(config, split="train", cum = 1):
         raw_img = image
         if not config["load_rgb"]:
             image = image.convert("L")
-        image = image.resize(
-            (
-                IMAGE_SIZE[0] // config["downsample_factor"],
-                IMAGE_SIZE[1] // config["downsample_factor"],
-            ),
-            resample=Image.BILINEAR,
-        )
         raw_img = np.asarray(raw_img)
         image_np = np.asarray(image)
-        image_flat = image_np.reshape(-1)
+        
         
         match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
             case 0:
-                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY).reshape(-1)
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
             case 1:
-                feature_vec = image_flat
+                feature_vec = image_np
             case 2:
-                feature_vec = hog_area(raw_img,True,False).reshape(-1)
+                feature_vec = hog_area(raw_img,True,False)
             case 3:
-                feature_vec = hog_area(raw_img,True,True).reshape(-1)
+                feature_vec = hog_area(raw_img,True,True)
             case 4:
-                feature_vec = mask_pixels_with_neighbors_gpu(image_np,10).reshape(-1)
+                feature_vec = detect_floor_region(image_np)
             case 5:
-                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
             case 6:
-                feature_vec = apply_blue_tone_and_extract_feature(image_np,False).reshape(-1)
+                feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
 
-
+        feature_vec = cv2.resize(feature_vec,
+            (
+                IMAGE_SIZE[0] // config["downsample_factor"],
+                IMAGE_SIZE[1] // config["downsample_factor"],
+            ), interpolation=cv2.INTER_LINEAR).reshape(-1)   
+        
         all_features.append(feature_vec)
         progressbar.update(1)
     progressbar.close()
@@ -142,8 +140,7 @@ def load_test_dataset(config):
                 (
                     IMAGE_SIZE[0] // config["downsample_factor"],
                     IMAGE_SIZE[1] // config["downsample_factor"],
-                ),
-                resample=Image.BILINEAR,
+                ), interpolation=cv2.INTER_LINEAR
             )
             image = np.asarray(image).reshape(-1)
             images.append(image)
@@ -166,34 +163,33 @@ def load_test_custom_dataset(config, cum):
             raw_img = image
             if not config["load_rgb"]:
                 image = image.convert("L")
-            image = image.resize(
-                (
-                    IMAGE_SIZE[0] // config["downsample_factor"],
-                    IMAGE_SIZE[1] // config["downsample_factor"],
-                ),
-                resample=Image.BILINEAR,
-            )
             raw_img = np.asarray(raw_img)
             image_np = np.asarray(image)
             image_flat = image_np.reshape(-1)
             
-            match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
-                case 0:
-                    feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY).reshape(-1)
-                case 1:
-                    feature_vec = image_flat
-                case 2:
-                    feature_vec = hog_area(raw_img,True,False).reshape(-1)
-                case 3:
-                    feature_vec = hog_area(raw_img,True,True).reshape(-1)
-                case 4:
-                    feature_vec = mask_pixels_with_neighbors_gpu(image_np,10).reshape(-1)
-                case 5:
-                    feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)
-                case 6:
-                    feature_vec = apply_blue_tone_and_extract_feature(image_np,False).reshape(-1)
-                        
-            all_features.append(feature_vec)
+        match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+            case 0:
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+            case 1:
+                feature_vec = image_np
+            case 2:
+                feature_vec = hog_area(raw_img,True,False)
+            case 3:
+                feature_vec = hog_area(raw_img,True,True)
+            case 4:
+                feature_vec = detect_floor_region(image_np)
+            case 5:
+                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
+            case 6:
+                feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
+
+        feature_vec = cv2.resize(feature_vec,
+            (
+                IMAGE_SIZE[0] // config["downsample_factor"],
+                IMAGE_SIZE[1] // config["downsample_factor"],
+            ), interpolation=cv2.INTER_LINEAR).reshape(-1)   
+          
+        all_features.append(feature_vec)
         progressbar.update(1)
     images = np.vstack(all_features)
     progressbar.close()
