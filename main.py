@@ -17,7 +17,7 @@ if __name__ == "__main__":
     # Load configs from "config.yaml"
     config = load_config()
     gs = 2
-    dyna = True
+    dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
     preprocess_var = 5   #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 

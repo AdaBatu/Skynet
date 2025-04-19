@@ -3,6 +3,7 @@ import os
 from sklearn.model_selection import GridSearchCV, ParameterGrid, cross_val_score
 import numpy as np
 from skopt import BayesSearchCV
+from skopt.callbacks import CheckpointSaver
 from sklearn.base import clone
 from tqdm import tqdm
 
@@ -55,10 +56,10 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
     search_space = {param: param_space[param] for param in param_space}
 
     # Initialize the tqdm progress bar with a total of n_iter (iterations)
-    progressbar = tqdm(total=50, desc="Bayesian Search Progress", unit="iteration")
+    #progressbar = tqdm(total=50, desc="Bayesian Search Progress", unit="iteration")
 
     # Create a custom callback to update the progress bar
-    def update_progress(results):
+    def update_progress(res = None, progressbar = None):
         progressbar.update(1)
 
     # Set up the BayesSearchCV with the model and search space
@@ -70,11 +71,10 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
         n_jobs=-1,
         verbose=1,
         scoring=scoring,
-        random_state=42
+        random_state=42     
     )
 
     # Attach the custom callback function to update the progress bar
-    bayes_search.optimizer._ask_callback = update_progress
 
     # Fit the model
     bayes_search.fit(X_train, y_train)
@@ -93,7 +93,7 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
             json.dump(best_params, f, indent=4)
 
     # Close the progress bar after optimization is done
-    progressbar.close()
+    #progressbar.close()
 
     return best_model, best_params
 

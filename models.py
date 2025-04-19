@@ -240,7 +240,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False, config = Non
             }
 
             param_space = {
-            'n_estimators': Integer(100, 500),
+            'max_iter': Integer(100, 500),
             'max_depth': Integer(5, 30),
             'learning_rate': Real(0.01, 0.3),
             }
