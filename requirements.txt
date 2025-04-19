@@ -10,3 +10,4 @@ cupy-cuda12x
 matplotlib
 tqdm
 mplcursors
+scikit-optimize
