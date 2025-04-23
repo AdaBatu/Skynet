@@ -1,5 +1,5 @@
 """Utility functions for project 1."""
-from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region
+from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region, meta_finder
 import yaml
 import os
 import numpy as np
@@ -18,6 +18,7 @@ import joblib
 from datetime import datetime
 
 IMAGE_SIZE = (300, 300)
+
 
 
 def load_config():
@@ -68,7 +69,8 @@ def load_dataset(config, split="train"):
     distances = labels["distance"].to_numpy()
     return images, distances
 
-def load_custom_dataset(config, split="train", cum = 1):
+def load_custom_dataset(config, split="train", cum = 1, dyna=False):
+    X_meta_list = []
     labels = pd.read_csv(
         config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
     )
@@ -107,7 +109,9 @@ def load_custom_dataset(config, split="train", cum = 1):
                 feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
             case 6:
                 feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
-
+        if dyna:
+            meta_features = meta_finder(feature_vec)
+            X_meta_list.append(meta_features)
         feature_vec = cv2.resize(feature_vec,
             (
                 IMAGE_SIZE[0] // config["downsample_factor"],
@@ -116,10 +120,11 @@ def load_custom_dataset(config, split="train", cum = 1):
         
         all_features.append(feature_vec)
         progressbar.update(1)
+    X_meta = np.array(X_meta_list)
     progressbar.close()
     images = np.vstack(all_features)
     distances = labels["distance"].to_numpy()
-    return images, distances
+    return X_meta, images, distances
 
 
 def load_test_dataset(config):
@@ -148,7 +153,8 @@ def load_test_dataset(config):
     return images
 
 
-def load_test_custom_dataset(config, cum):
+def load_test_custom_dataset(config, cum, dyna=False):
+    X_meta_list = []
     feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
         IMAGE_SIZE[1] // config["downsample_factor"]
     )
@@ -182,7 +188,9 @@ def load_test_custom_dataset(config, cum):
                 feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
             case 6:
                 feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
-
+        if dyna:
+            meta_features = meta_finder(feature_vec)
+            X_meta_list.append(meta_features)
         feature_vec = cv2.resize(feature_vec,
             (
                 IMAGE_SIZE[0] // config["downsample_factor"],
@@ -191,9 +199,10 @@ def load_test_custom_dataset(config, cum):
           
         all_features.append(feature_vec)
         progressbar.update(1)
+    X_meta = np.array(X_meta_list)
     images = np.vstack(all_features)
     progressbar.close()
-    return images
+    return X_meta, images
 
 
 def print_results(gt, pred):

@@ -9,7 +9,7 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
-from models import model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST, model_DYNAMIC_SELECTOR
+from models import model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR
 import mplcursors
 
 
@@ -17,25 +17,27 @@ if __name__ == "__main__":
     # Load configs from "config.yaml"
     config = load_config()
     gs = 2
-    dyna = True
+    dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
     preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if dyna:
         print("Using traditional approach with pre-processed arrays")
         # Load dataset: images and corresponding minimum distance values
-        images, distances = load_dataset(config)
-        X_test_ch = load_test_dataset(config)
+        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
+        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
+
         print(f"[INFO]: Dataset loaded with {len(images)} samples.")
 
         # Train test split
-        X_train, X_test, y_train, y_test = train_test_split(images, distances)
-        model = model_DYNAMIC_SELECTOR(gridsearch=2, 
-                                       personalized_pre_processing=personalized_pre_processing, 
+        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances)
+        model = model_DYNAMIC_SELECTOR(gridsearch1=gs, 
+                                       personalized_pre_processing1=personalized_pre_processing, 
                                        X_train=X_train, 
-                                       y_train=y_train)
-        y_pred = model.predict(X_test)
-        y_pred_ch = model.predict(X_test_ch)
+                                       y_train=y_train,
+                                       X_meta= X_meta_train)
+        y_pred = model.predict(X_test, y_test, X_meta_test)
+        y_pred_ch = model.predict(X_test_ch, np.zeros(len(X_test_ch)), Actual_meta)
     else:
         if not personalized_pre_processing:
             print("Using traditional approach with pre-processed arrays")
@@ -57,8 +59,8 @@ if __name__ == "__main__":
 
         else:
 
-            images, distances = load_custom_dataset(config, "train", preprocess_var)  
-            X_test_ch = load_test_custom_dataset(config, preprocess_var)
+            _, images, distances = load_custom_dataset(config, "train", preprocess_var,dyna)  
+            _, X_test_ch = load_test_custom_dataset(config, preprocess_var,dyna)
             
             X_train, X_test, y_train, y_test = train_test_split(images, distances)
 
@@ -82,19 +84,18 @@ if __name__ == "__main__":
             y_pred_ch = model.predict(X_test_ch)
 
         # Accuracy and saving
-        print_results(y_test, y_pred)
-        y_pred = model.predict(X_test)
-        y_dif= (y_test - y_pred)*100
-        plt.hist(y_dif,density=False, color='skyblue', edgecolor='black')
-        mplcursors.cursor(hover=True)
-        plt.show()
-        # Final training on all data
-        if not personalized_pre_processing:
-            model.fit(images, distances)
-            save_results(model.predict(X_test_ch))
-        else:
-            model.fit(images, distances)
-            save_results(model.predict(X_test_ch))
+    print_results(y_test, y_pred)
+    y_dif= (y_test - y_pred)*100
+    plt.hist(y_dif,density=False, color='skyblue', bins=20, edgecolor='black')
+    mplcursors.cursor(hover=True)
+    plt.show()
+    # Final training on all data
+    if not personalized_pre_processing:
+        model.fit(images, distances)
+        save_results(model.predict(X_test_ch))
+    else:
+        model.fit(images, distances)
+        save_results(model.predict(X_test_ch))
 
 
 

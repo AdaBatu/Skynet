@@ -1,0 +1,5 @@
+{
+    "regressor__learning_rate": 0.047267392531838384,
+    "regressor__max_depth": 30,
+    "regressor__max_iter": 481
+}

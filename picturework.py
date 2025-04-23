@@ -803,6 +803,8 @@ def hog_area(image, areainf = True, hogo = True):
 
 
 def meta_finder(image):
+    if image.ndim != 3 or image.shape[2] != 3:
+        raise ValueError(f"Expected RGB image with shape (H, W, 3), got {image.shape}")
     means = np.mean(image, axis=(0, 1))  # Mean across height and width
     variances = np.var(image, axis=(0, 1))  # Variance across height and width
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)

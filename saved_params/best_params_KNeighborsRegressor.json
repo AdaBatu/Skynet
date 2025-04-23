@@ -1,7 +1,8 @@
 {
-    "algorithm": "brute",
-    "metric_params": null,
-    "n_neighbors": 3,
-    "p": 1,
+    "algorithm": "ball_tree",
+    "leaf_size": 10,
+    "metric": "manhattan",
+    "n_neighbors": 2,
+    "p": 2,
     "weights": "distance"
 }
