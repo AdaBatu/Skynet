@@ -79,7 +79,6 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
         verbose=False,
         scoring=scoring,
         random_state=42, 
-        optimizer_kwargs={'acq_func': 'EI'}    
     )
 
     # Attach the custom callback function to update the progress bar

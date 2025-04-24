@@ -27,9 +27,9 @@ def safe_set_random_state(model, seed=42):
                 model.set_params(**{f"{name}__random_state": seed})
 
 def resize_data(X):
-
-    new_height, new_width = 12, 12  # Specify your desired dimensions
-    resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X])  # Resizing images
+    X_reshaped = X.reshape(-1, 10, 10)
+    new_height, new_width = 6, 6  # Specify your desired dimensions
+    resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X_reshaped])  # Resizing images
     return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
 
 
@@ -112,25 +112,34 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             ('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=50)),
             ('regressor',  KernelRidge())
             ])
+            param_space = {
+    'regressor__alpha': Real(1e-6, 1e3, prior='log-uniform'),
+    'regressor__kernel': Categorical(['linear', 'poly', 'rbf']),
+    'regressor__degree': Integer(2, 5),
+    'regressor__coef0': Real(1e-2, 1.0),
+    'regressor__gamma': Real(0.0001, 1.0),
+        }
         else:
             model_name = "KernelRidge"
             model = KernelRidge()
+            param_space = {
+    'alpha': Real(1e-6, 1e3, prior='log-uniform'),
+    'kernel': Categorical(['linear', 'poly', 'rbf']),
+    'degree': Integer(2, 5),
+    'coef0': Real(1e-2, 1.0),
+    'gamma': Real(0.00001, 1.0),
+        }
+
+
         param_grid = {
             'alpha': [0.1, 1.0, 10.0],
             'kernel': ['linear', 'rbf', 'polynomial'],
             'gamma': [None, 0.0001, 0.001, 0.1, 1.0],  # Only applicable for some kernels
             'degree': [3, 4],  # Only applicable for polynomial kernel
         }
-        param_space = {
-    'regressor__alpha': Real(1e-1, 1e5, prior='log-uniform'),
-    'regressor__kernel': Categorical(['linear', 'poly', 'rbf']),
-    'regressor__degree': Integer(2, 5),
-    'regressor__coef0': Real(1e-2, 3.0),
-    'regressor__gamma': Real(0.000001, 1.0),
-        }
+        
         if gridsearch==2:
             best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, 5, model_name=model_name)
         else:
