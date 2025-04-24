@@ -17,33 +17,51 @@ from utils import ImagePreprocessor, load_config
 from sklearn.model_selection import GridSearchCV
 from sklearn.linear_model import LinearRegression
 
+def safe_set_random_state(model, seed=42):
+    # Try to set random_state if it's a valid param
+    if "random_state" in model.get_params():
+        model.set_params(random_state=seed)
+    elif hasattr(model, "steps"):  # It's a Pipeline
+        for name, step in model.steps:
+            if "random_state" in step.get_params():
+                model.set_params(**{f"{name}__random_state": seed})
+
+def resize_data(X):
+
+    new_height, new_width = 12, 12  # Specify your desired dimensions
+    resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X])  # Resizing images
+    return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
+
+
 class DynamicWeightRegressor:
     def __init__(self, base_models):
         self.base_models = base_models  # Dict of model_name -> model instance
         self.meta_model = LinearRegression()
 
-    def fit(self, X_image,y_train, X_meta, y):
+    def fit(self, X_image,y, X_meta, X_test, y_test):
         # Train each base model
         error_targets  = []
         for name, model in self.base_models.items():
             print(name)
+            safe_set_random_state(model)
             model.fit(X_image, y)
-            preds = model.predict(X_image).reshape(-1, 1)
-            error_targets.append(np.abs(preds-y_train.reshape(-1,1)))
+            preds = model.predict(X_test)
+            error_targets.append((preds-y_test).reshape(-1, 1))
 
-        error_targets  = np.hstack(error_targets )
-
+        error_targets  = np.hstack(error_targets)
         # Train meta-model to learn weights
-        self.meta_model.fit(X_meta, error_targets )
+        self.meta_model.fit(X_meta, error_targets)
 
     def predict(self, X_image, y_lab, X_meta):
         base_preds = []
+        base_mae = []
         for name, model in self.base_models.items():
+            safe_set_random_state(model)
             predd = model.predict(X_image)
             mae = np.mean(np.abs(predd - y_lab))
+            
             print(f"{name} MAE: {mae:.2f}")
-            preds = model.predict(X_image).reshape(-1, 1)
-            base_preds.append(preds)
+            base_preds.append(predd.reshape(-1, 1))
 
         base_preds = np.hstack(base_preds)
         predicted_errors = self.meta_model.predict(X_meta)
@@ -53,20 +71,20 @@ class DynamicWeightRegressor:
 
         # Apply weights row-wise
         y_pred = np.sum(base_preds * weights, axis=1)
-        return y_pred
+        return y_pred,predicted_errors
 
 
-def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False, X_train=None, y_train=None, X_meta = None):
+def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False, X_train=None, y_train=None, X_meta = None, X_test = None, y_test = None):
     # Base models
     base_models = {
+        "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
         "HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        "KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
+        "KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
         }
     #"LLR": model_log_linear(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
     
     model = DynamicWeightRegressor(base_models)
-    model.fit(X_train, y_train, X_meta, y_train)
+    model.fit(X_train, y_train, X_meta, X_test, y_test)
     return model
 
 def load_best_params(model_name, save_dir="saved_params"):
@@ -86,11 +104,20 @@ def load_best_params(model_name, save_dir="saved_params"):
 
 
 def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
-    model_name = "KernelRidge"
+    
     
     if gridsearch:
-
-        model = KernelRidge()
+        if personalized_pre_processing:
+            model_name = "KernelRidge_pipe"
+            model = Pipeline([
+            ('resize', FunctionTransformer(resize_data, validate=False)),  
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=50)),
+            ('regressor',  KernelRidge())
+            ])
+        else:
+            model_name = "KernelRidge"
+            model = KernelRidge()
         param_grid = {
             'alpha': [0.1, 1.0, 10.0],
             'kernel': ['linear', 'rbf', 'polynomial'],
@@ -98,14 +125,14 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             'degree': [3, 4],  # Only applicable for polynomial kernel
         }
         param_space = {
-    'regressor__alpha': Real(1e-6, 1e3, prior='log-uniform'),
-    'regressor__kernel': Categorical(['linear', 'poly', 'rbf', 'sigmoid']),
+    'regressor__alpha': Real(1e-1, 1e5, prior='log-uniform'),
+    'regressor__kernel': Categorical(['linear', 'poly', 'rbf']),
     'regressor__degree': Integer(2, 5),
-    'regressor__coef0': Real(0.0, 1.0),
-    'regressor__gamma': Real(0.0001, 1.0),
+    'regressor__coef0': Real(1e-2, 3.0),
+    'regressor__gamma': Real(0.000001, 1.0),
         }
         if gridsearch==2:
-            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, 5, model_name=model_name)
         else:
             best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
         return best_model
@@ -118,16 +145,17 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
 
 
 def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None, y_train=None):
-    model_name = "KNeighborsRegressor"
+    
     random_state = 42  # Consistent seed for all model
     
 
     if personalized_pre_processing:
+        model_name = "KNeighborsRegressor_pipe"
         # Pipeline approach - will handle its own loading
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=50)),
+            ('dim_reduction', PCA(n_components=400)),
             ('regressor', KNeighborsRegressor())
         ])
         
@@ -137,13 +165,13 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
             param_space = {
     'regressor__n_neighbors': Integer(1, 50),
     'regressor__weights': Categorical(['uniform', 'distance']),
-    'regressor__metric': Categorical(['euclidean', 'manhattan', 'cosine']),
+    'regressor__metric': Categorical(['euclidean', 'manhattan']),
     'regressor__algorithm': Categorical(['auto', 'ball_tree', 'kd_tree', 'brute']),
     'regressor__leaf_size': Integer(10, 100),
     'regressor__p': Integer(1, 2),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(knn_pipeline, param_space, X_train, y_train)
+                best_model, best_params = bayesian_search_model_with_progress(knn_pipeline, param_space, X_train, y_train, model_name=model_name)
             else:
                 param_grid = {
                 'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
@@ -166,6 +194,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
                 return knn_pipeline
 
     else:  # Original non-personalized processing
+        model_name = "KNeighborsRegressor"
         if gridsearch:
             model = KNeighborsRegressor()
 
@@ -178,7 +207,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
     'p': Integer(1, 2),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, model_name=model_name)
             else:
                 param_grid = {
                 'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
@@ -201,16 +230,17 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
 
 
 def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=None, y_train=None):
-    model_name = "HistGradientBoostingRegressor"
+    
     randomi = 42  # Consistent seed for all model
     
 
     if personalized_pre_processing:
+        model_name = "HistGradientBoostingRegressor_pipe"
         # Pipeline approach - will handle its own loading
         print("Using full pipeline with built-in loading")
         hist_pipeline = Pipeline([
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=50)),
+            ('dim_reduction', PCA(n_components=300)),
             ('regressor', HistGradientBoostingRegressor())
         ])
         
@@ -233,7 +263,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             'regressor__learning_rate': Real(0.01, 0.3),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(hist_pipeline, param_space, X_train, y_train)
+                best_model, best_params = bayesian_search_model_with_progress(hist_pipeline, param_space, X_train, y_train, model_name=model_name)
             else:
                 best_model, best_params = grid_search_model_PB(hist_pipeline, param_grid, X_train, y_train)
             return best_model
@@ -249,6 +279,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         #return model
 
     else:  # Original non-personalized processing
+        model_name = "HistGradientBoostingRegressor"
         if gridsearch:
             model = HistGradientBoostingRegressor(random_state=randomi)
             param_grid = {
@@ -268,7 +299,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             'regressor__learning_rate': Real(0.01, 0.3),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train)
+                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, model_name=model_name)
             else:
                 best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
             return best_model

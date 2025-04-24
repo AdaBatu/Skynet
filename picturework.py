@@ -793,7 +793,7 @@ def hog_area(image, areainf = True, hogo = True):
 
     if hogo:
         gray_image = color.rgb2gray(image) 
-        hog_features, _ = hog(gray_image, pixels_per_cell=(16, 16), cells_per_block=(2, 2), visualize=True)
+        hog_features, _ = hog(gray_image, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm='L2-Hys', visualize=True)
     if areainf & hogo:
      return np.concatenate([[max_area, mean_area], hog_features])
     elif hogo:

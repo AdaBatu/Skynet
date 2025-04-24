@@ -19,7 +19,7 @@ if __name__ == "__main__":
     gs = 2
     dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 3   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if dyna:
         print("Using traditional approach with pre-processed arrays")
@@ -30,14 +30,24 @@ if __name__ == "__main__":
         print(f"[INFO]: Dataset loaded with {len(images)} samples.")
 
         # Train test split
-        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances)
+        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances, train_size=0.8, random_state=42)
         model = model_DYNAMIC_SELECTOR(gridsearch1=gs, 
                                        personalized_pre_processing1=personalized_pre_processing, 
                                        X_train=X_train, 
                                        y_train=y_train,
-                                       X_meta= X_meta_train)
-        y_pred = model.predict(X_test, y_test, X_meta_test)
-        y_pred_ch = model.predict(X_test_ch, np.zeros(len(X_test_ch)), Actual_meta)
+                                       X_meta= X_meta_test,
+                                       X_test= X_test,
+                                       y_test= y_test)
+        y_pred, errors = model.predict(X_test, y_test, X_meta_test)
+        plt.hist(errors[:,0],density=False, color='skyblue', bins=20, edgecolor='black')
+        plt.hist(errors[:,1],density=False, color='red', bins=20, edgecolor='black')
+        plt.hist(errors[:,2],density=False, color='black', bins=20, edgecolor='black')
+        mplcursors.cursor(hover=True)
+        plt.show()
+
+        y_pred_ch, errors = model.predict(X_test_ch, np.zeros(len(X_test_ch)), Actual_meta)
+
+
     else:
         if not personalized_pre_processing:
             print("Using traditional approach with pre-processed arrays")
@@ -51,6 +61,7 @@ if __name__ == "__main__":
 
             # Model - traditional approach
             model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+            model.set_params(random_state=42)
             model.fit(X_train, y_train)
             
             # Prediction
@@ -73,9 +84,9 @@ if __name__ == "__main__":
                 y_train=y_train
             )
             """
-            model = model_KNN(gs, False, X_train, y_train)
-            #model = model_KRR(gs, False, X_train, y_train)
-            #model = HIST_BOOST(gs, False, config, X_train, y_train)
+            #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+            model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
+            #model = HIST_BOOST(gs, False, X_train, y_train)
             
             model.fit(X_train, y_train)
             
@@ -85,17 +96,17 @@ if __name__ == "__main__":
 
         # Accuracy and saving
     print_results(y_test, y_pred)
-    y_dif= (y_test - y_pred)*100
+    y_dif= np.abs(y_test - y_pred)*100
     plt.hist(y_dif,density=False, color='skyblue', bins=20, edgecolor='black')
     mplcursors.cursor(hover=True)
     plt.show()
     # Final training on all data
-    if not personalized_pre_processing:
+    """if not personalized_pre_processing:
         model.fit(images, distances)
         save_results(model.predict(X_test_ch))
     else:
         model.fit(images, distances)
-        save_results(model.predict(X_test_ch))
+        save_results(model.predict(X_test_ch))"""
 
 
 

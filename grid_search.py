@@ -1,5 +1,6 @@
 import json
 import os
+import warnings
 from sklearn.model_selection import GridSearchCV, ParameterGrid, cross_val_score
 import numpy as np
 from skopt import BayesSearchCV
@@ -46,7 +47,16 @@ def grid_search_model_PB(model, param_grid, X_train=None, y_train=None, cv=5,
 
     return best_model, best_params
 
-def bayesian_search_model_with_progress(model, param_space, X_train=None, y_train=None, cv=5, scoring='neg_mean_squared_error', save_params=True, save_dir="saved_params"):
+class progress:
+    def __init__(self, len=50, name= "Bayesian Search Progress"):
+        self.progressbar = tqdm(total=len, desc=name, unit="iteration")
+    def update(self, result):
+        self.progressbar.update(1)
+    def __del__(self):
+        self.progressbar.close()
+        print("DONE!")
+
+def bayesian_search_model_with_progress(model, param_space, X_train=None, y_train=None, cv=5, scoring='neg_mean_squared_error', save_params=True, save_dir="saved_params", model_name= None):
     """
     Performs Bayesian optimization (using BayesSearchCV) to find the best hyperparameters.
     """
@@ -56,11 +66,8 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
     search_space = {param: param_space[param] for param in param_space}
 
     # Initialize the tqdm progress bar with a total of n_iter (iterations)
-    #progressbar = tqdm(total=50, desc="Bayesian Search Progress", unit="iteration")
+    asd = progress(50, "Bayesian Search Progress")
 
-    # Create a custom callback to update the progress bar
-    def update_progress(res = None, progressbar = None):
-        progressbar.update(1)
 
     # Set up the BayesSearchCV with the model and search space
     bayes_search = BayesSearchCV(
@@ -69,20 +76,22 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
         n_iter=50,  # Number of iterations
         cv=cv,
         n_jobs=-1,
-        verbose=2,
+        verbose=False,
         scoring=scoring,
-        random_state=42     
+        random_state=42, 
+        optimizer_kwargs={'acq_func': 'EI'}    
     )
 
     # Attach the custom callback function to update the progress bar
 
     # Fit the model
-    bayes_search.fit(X_train, y_train)
+    warnings.filterwarnings("ignore", message=".*Singular matrix in solving dual problem.*")
 
+    bayes_search.fit(X_train, y_train, callback=asd.update)
+    del asd
     best_model = bayes_search.best_estimator_
     best_params = bayes_search.best_params_
 
-    model_name = type(model).__name__
     print(f"Best parameters for {model_name}:", best_params)
 
     # Save parameters if enabled
@@ -105,7 +114,7 @@ def grid_search_model(model, param_grid, X_train=None, y_train=None, cv=5, scori
         cv=cv,
         scoring=scoring,
         n_jobs=-1,
-        verbose=1  # Higher numbers = more verbose
+        verbose=0  # Higher numbers = more verbose
     )
     print(f"Starting grid search with {len(param_grid)} parameter combinations x {cv} folds...")
 
