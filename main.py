@@ -16,8 +16,8 @@ import mplcursors
 if __name__ == "__main__":
     # Load configs from "config.yaml"
     config = load_config()
-    gs = False
-    dyna = True
+    gs = 2
+    dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
     preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
@@ -49,52 +49,31 @@ if __name__ == "__main__":
 
 
     else:
-        if not personalized_pre_processing:
-            print("Using traditional approach with pre-processed arrays")
-            # Load dataset: images and corresponding minimum distance values
-            images, distances = load_dataset(config)
-            X_test_ch = load_test_dataset(config)
-            print(f"[INFO]: Dataset loaded with {len(images)} samples.")
+        _, images, distances = load_custom_dataset(config, "train", preprocess_var,dyna)  
+        _, X_test_ch = load_test_custom_dataset(config, preprocess_var,dyna)
+        
+        X_train, X_test, y_train, y_test = train_test_split(images, distances)
 
-            # Train test split
-            X_train, X_test, y_train, y_test = train_test_split(images, distances)
+        # Model - pipeline approach
+        """model = model_KNN(
+            personalized_pre_processing = True, 
+            gridsearch=gs,
+            config=config,
+            X_train=X_train_df,
+            y_train=y_train
+        )
+        """
+        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
+        #model = HIST_BOOST(gs, personalized_pre_processing, X_train, y_train)
+        
+        model.fit(X_train, y_train)
+        
+        # Prediction
+        y_pred = model.predict(X_test)
+        y_pred_ch = model.predict(X_test_ch)
 
-            # Model - traditional approach
-            model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
-            model.set_params(random_state=42)
-            model.fit(X_train, y_train)
-            
-            # Prediction
-            y_pred = model.predict(X_test)
-            y_pred_ch = model.predict(X_test_ch)
-
-        else:
-
-            _, images, distances = load_custom_dataset(config, "train", preprocess_var,dyna)  
-            _, X_test_ch = load_test_custom_dataset(config, preprocess_var,dyna)
-            
-            X_train, X_test, y_train, y_test = train_test_split(images, distances)
-
-            # Model - pipeline approach
-            """model = model_KNN(
-                personalized_pre_processing = True, 
-                gridsearch=gs,
-                config=config,
-                X_train=X_train_df,
-                y_train=y_train
-            )
-            """
-            #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
-            #model = model_KRR(gs, True, X_train, y_train)
-            model = HIST_BOOST(gs, False, X_train, y_train)
-            
-            model.fit(X_train, y_train)
-            
-            # Prediction
-            y_pred = model.predict(X_test)
-            y_pred_ch = model.predict(X_test_ch)
-
-        # Accuracy and saving
+    # Accuracy and saving
     print_results(y_test, y_pred)
     y_dif= np.abs(y_test - y_pred)*100
     plt.hist(y_dif,density=False, color='skyblue', bins=20, edgecolor='black')

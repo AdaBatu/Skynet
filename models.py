@@ -27,8 +27,8 @@ def safe_set_random_state(model, seed=42):
                 model.set_params(**{f"{name}__random_state": seed})
 
 def resize_data(X):
-    X_reshaped = X.reshape(-1, 10, 10)
-    new_height, new_width = 6, 6  # Specify your desired dimensions
+    X_reshaped = X.reshape(-1, 75, 75)
+    new_height, new_width = 20, 20  # Specify your desired dimensions
     resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X_reshaped])  # Resizing images
     return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
 
@@ -46,7 +46,7 @@ class DynamicWeightRegressor:
             safe_set_random_state(model)
             model.fit(X_image, y)
             preds = model.predict(X_test)
-            error_targets.append((preds-y_test).reshape(-1, 1))
+            error_targets.append(np.abs(preds-y_test).reshape(-1, 1))
 
         error_targets  = np.hstack(error_targets)
         # Train meta-model to learn weights
@@ -78,7 +78,7 @@ def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False
     # Base models
     base_models = {
         "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        "HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
+        "HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
         "KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
         }
     #"LLR": model_log_linear(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
@@ -142,7 +142,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
         }
         
         if gridsearch==2:
-            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, 5, model_name=model_name)
+            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, save_params=True, model_name=model_name)
         else:
             best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
         return best_model
@@ -197,7 +197,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
     'regressor__p': Integer(1, 2),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(knn_pipeline, param_space, X_train, y_train, model_name=model_name)
+                best_model, best_params = bayesian_search_model_with_progress(knn_pipeline, param_space, X_train, y_train,save_params=True, model_name=model_name)
             else:
                 param_grid = {
                 'n_neighbors': [3, 5, 7, 9, 11, 13, 15, 17, 20, 25, 30],
@@ -272,7 +272,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         hist_pipeline = Pipeline([
             ('resize', FunctionTransformer(resize_data, validate=False)),
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=200)),
+            #('dim_reduction', PCA(n_components=100)),
             ('regressor', HistGradientBoostingRegressor())
         ])
         
@@ -331,7 +331,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             'learning_rate': Real(0.01, 0.3),
             }
             if gridsearch==2:
-                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, model_name=model_name)
+                best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train,save_params=True, model_name=model_name)
             else:
                 best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
             return best_model
