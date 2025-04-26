@@ -813,9 +813,12 @@ def meta_finder(image):
     areas = [cv2.contourArea(c) for c in contours]
     max_area = max(areas) if areas else 0
     mean_area = np.mean(areas) if areas else 0
+    floor_region = detect_floor_region(image)
+    floor_mean = floor_region.mean()
+    floor_std = floor_region.std()
+    floor_max = floor_region.max()
 
-
-    return np.concatenate([means, variances, [max_area, mean_area]])
+    return np.concatenate([[floor_mean, floor_std, floor_max], means, variances, [max_area, mean_area]])
 
 
 

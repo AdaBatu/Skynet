@@ -9,8 +9,9 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
-from models import model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR
 import mplcursors
+from models import model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme
+
 
 
 if __name__ == "__main__":
@@ -39,15 +40,10 @@ if __name__ == "__main__":
                                        X_test= X_test,
                                        y_test= y_test)
         y_pred, errors = model.predict(X_test, y_test, X_meta_test)
-        plt.hist(errors[:,0],density=False, color='skyblue', bins=20, edgecolor='black')
-        plt.hist(errors[:,1],density=False, color='red', bins=20, edgecolor='black')
-        plt.hist(errors[:,2],density=False, color='black', bins=20, edgecolor='black')
-        mplcursors.cursor(hover=True)
-        plt.show()
-
+        showme(errors)
         y_pred_ch, errors = model.predict(X_test_ch, np.zeros(len(X_test_ch)), Actual_meta)
 
-
+        save_results(y_pred_ch)
     else:
         _, images, distances = load_custom_dataset(config, "train", preprocess_var,dyna)  
         _, X_test_ch = load_test_custom_dataset(config, preprocess_var,dyna)
