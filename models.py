@@ -3,7 +3,7 @@ from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor
 from sklearn.linear_model import Ridge
 from sklearn.neighbors import KNeighborsRegressor
-from grid_search import grid_search_model, grid_search_model_PB, bayesian_search_model_with_progress
+from grid_search import grid_search_model_PB, bayesian_search_model_with_progress
 from picturework import meta_finder
 from skopt.space import Real, Integer, Categorical
 import json
@@ -110,8 +110,9 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
         if personalized_pre_processing:
             model_name = "KernelRidge_pipe"
             model = Pipeline([
-            ('resize', FunctionTransformer(resize_data, validate=False)),  
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=50)),
             ('regressor',  KernelRidge())
             ])
             param_space = {
@@ -125,11 +126,11 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model_name = "KernelRidge"
             model = KernelRidge()
             param_space = {
-    'alpha': Real(1e-6, 1e3, prior='log-uniform'),
+    'alpha': Real(1e-6, 1e3), #, prior='log-uniform'
     'kernel': Categorical(['linear', 'poly', 'rbf']),
     'degree': Integer(2, 5),
     'coef0': Real(1e-2, 1.0),
-    'gamma': Real(0.00001, 1.0),
+    'gamma': Real(0, 1.0),
         }
 
 
@@ -146,11 +147,27 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
         return best_model
     else:
+        if personalized_pre_processing:
+            model_name = "KernelRidge_pipe"
+            model = Pipeline([
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=50)),
+            ('regressor',  KernelRidge())
+            ])
+        else:
+            model_name = "KernelRidge"
+            model =  KernelRidge()
         best_params = load_best_params(model_name)
         if best_params:
-            return KernelRidge(**best_params)
+
+            model.set_params(**best_params)
+            safe_set_random_state(model,42)
+            return model
         else:
-            return KernelRidge()
+            model =  KernelRidge()
+            safe_set_random_state(model,42)
+            return model
 
 
 def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None, y_train=None):
@@ -196,8 +213,9 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
             return best_model
         else:
             best_params = load_best_params(model_name)
-            knn_pipeline.set_params(**best_params)
+            safe_set_random_state(knn_pipeline,42)
             if best_params:
+                knn_pipeline.set_params(**best_params)
                 return knn_pipeline
             else:
                 return knn_pipeline
@@ -233,9 +251,13 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         else:
             best_params = load_best_params(model_name)
             if best_params:
-                return KNeighborsRegressor(**best_params)
+                model =  KNeighborsRegressor(**best_params)
+                safe_set_random_state(model,42)
+                return model
             else:
-                return KNeighborsRegressor()   
+                model =  KNeighborsRegressor()
+                safe_set_random_state(model,42)
+                return model
 
 
 def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=None, y_train=None):
@@ -248,13 +270,14 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         # Pipeline approach - will handle its own loading
         print("Using full pipeline with built-in loading")
         hist_pipeline = Pipeline([
+            ('resize', FunctionTransformer(resize_data, validate=False)),
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=300)),
+            ('dim_reduction', PCA(n_components=200)),
             ('regressor', HistGradientBoostingRegressor())
         ])
         
         # Need to pass the label DataFrame to the pipeline
-        if gridsearch:
+        if bool(gridsearch):
             param_grid = {
                 'learning_rate': [0.01, 0.05, 0.1, 0.2],
                 'n_iter_no_change': [5, 10, 20],
@@ -290,7 +313,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
     else:  # Original non-personalized processing
         model_name = "HistGradientBoostingRegressor"
         if gridsearch:
-            model = HistGradientBoostingRegressor(random_state=randomi)
+            model = HistGradientBoostingRegressor()
             param_grid = {
                 'learning_rate': [0.01, 0.05, 0.1, 0.2],
                 'n_iter_no_change': [5, 10, 20],
@@ -303,9 +326,9 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             }
 
             param_space = {
-            'regressor__max_iter': Integer(100, 500),
-            'regressor__max_depth': Integer(5, 30),
-            'regressor__learning_rate': Real(0.01, 0.3),
+            'max_iter': Integer(100, 500),
+            'max_depth': Integer(5, 30),
+            'learning_rate': Real(0.01, 0.3),
             }
             if gridsearch==2:
                 best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, model_name=model_name)
@@ -315,9 +338,13 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         else:
             best_params = load_best_params(model_name)
             if best_params:
-                return HistGradientBoostingRegressor(**best_params, random_state=randomi)
+                model =  HistGradientBoostingRegressor(**best_params)
+                safe_set_random_state(model,42)
+                return model
             else:
-                return HistGradientBoostingRegressor()
+                model =  HistGradientBoostingRegressor()
+                safe_set_random_state(model,42)
+                return model
 
 class InverseLogTransformer:
     def fit(self, X, y=None):

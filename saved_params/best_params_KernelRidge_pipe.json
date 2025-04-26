@@ -1,6 +1,6 @@
 {
-    "regressor__alpha": 0.4421549272083765,
-    "regressor__coef0": 0.9299686000337087,
+    "regressor__alpha": 0.7390155189220197,
+    "regressor__coef0": 1.0,
     "regressor__degree": 3,
     "regressor__gamma": 0.0001,
     "regressor__kernel": "poly"

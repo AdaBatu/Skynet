@@ -9,6 +9,17 @@ from sklearn.base import clone
 from tqdm import tqdm
 
 
+def safe_set_random_state(model, seed=42):
+    # Try to set random_state if it's a valid param
+    if "random_state" in model.get_params():
+        model.set_params(random_state=seed)
+    elif hasattr(model, "steps"):  # It's a Pipeline
+        for name, step in model.steps:
+            if "random_state" in step.get_params():
+                model.set_params(**{f"{name}__random_state": seed})
+
+
+
 def grid_search_model_PB(model, param_grid, X_train=None, y_train=None, cv=5,
                       scoring='neg_mean_squared_error', save_params=True, save_dir="saved_params"):
 
@@ -102,7 +113,7 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
 
     # Close the progress bar after optimization is done
     #progressbar.close()
-
+    safe_set_random_state(best_model,42)
     return best_model, best_params
 
 def grid_search_model(model, param_grid, X_train=None, y_train=None, cv=5, scoring='neg_mean_squared_error', save_params=True, save_dir="saved_params"):
