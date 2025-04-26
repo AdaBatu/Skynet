@@ -16,8 +16,8 @@ import mplcursors
 if __name__ == "__main__":
     # Load configs from "config.yaml"
     config = load_config()
-    gs = 2
-    dyna = False
+    gs = False
+    dyna = True
     personalized_pre_processing = True  # Set to False to use traditional approach
     preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
@@ -63,8 +63,8 @@ if __name__ == "__main__":
             y_train=y_train
         )
         """
-        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
-        model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
+        model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
         #model = HIST_BOOST(gs, personalized_pre_processing, X_train, y_train)
         
         model.fit(X_train, y_train)

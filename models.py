@@ -27,7 +27,7 @@ def safe_set_random_state(model, seed=42):
                 model.set_params(**{f"{name}__random_state": seed})
 
 def resize_data(X):
-    X_reshaped = X.reshape(-1, 75, 75)
+    X_reshaped = X.reshape(-1, 20, 20)
     new_height, new_width = 20, 20  # Specify your desired dimensions
     resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X_reshaped])  # Resizing images
     return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
@@ -270,9 +270,9 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         # Pipeline approach - will handle its own loading
         print("Using full pipeline with built-in loading")
         hist_pipeline = Pipeline([
-            ('resize', FunctionTransformer(resize_data, validate=False)),
+            #('resize', FunctionTransformer(resize_data, validate=False)),
             ('scaler', StandardScaler()),
-            #('dim_reduction', PCA(n_components=100)),
+            ('dim_reduction', PCA(n_components=100)),
             ('regressor', HistGradientBoostingRegressor())
         ])
         
