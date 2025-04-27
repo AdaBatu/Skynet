@@ -1,9 +1,11 @@
-from sklearn.ensemble import RandomForestRegressor
+import cv2
+from sklearn.ensemble import RandomForestRegressor, StackingRegressor
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.ensemble import HistGradientBoostingRegressor
+from sklearn.ensemble import HistGradientBoostingRegressor, AdaBoostRegressor
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge
 from sklearn.neighbors import KNeighborsRegressor
+from sklearn.tree import DecisionTreeRegressor
 from grid_search import grid_search_model_PB, bayesian_search_model_with_progress
 from picturework import meta_finder
 from skopt.space import Real, Integer, Categorical
@@ -29,17 +31,24 @@ def safe_set_random_state(model, seed=42):
                 model.set_params(**{f"{name}__random_state": seed})
 
 def showme(errors):
-    plt.hist(errors[:,0] , alpha=0.4, density=False, color='skyblue', bins=20, edgecolor='black')
-    plt.hist(errors[:,1], alpha=0.3,density=False, color='red', bins=20, edgecolor='black')
-    #plt.hist(errors[:,2], alpha=0.5,density=False, color='black', bins=20, edgecolor='black')
+    coldict = {
+        0 : 'pink',
+        1 : 'skyblue',
+        2 : 'red',
+        3 : 'purple',
+        4: 'orange',
+        5: 'green'
+    }
+    for i in range(errors.shape[1]):
+        plt.hist(errors[:,i] , alpha=0.4, density=False, color=coldict[i], bins=20, edgecolor='black')
     mplcursors.cursor(hover=True)
     plt.show()
 
 
 def resize_data(X):
-    X_reshaped = X.reshape(-1, 20, 20)
+    X_reshaped = X.reshape(-1, 50, 50)
     new_height, new_width = 20, 20  # Specify your desired dimensions
-    resized_X = np.array([np.resize(x, (new_height, new_width)) for x in X_reshaped])  # Resizing images
+    resized_X = np.array([cv2.resize(x, (new_height, new_width),interpolation=cv2.INTER_AREA) for x in X_reshaped])  # Resizing images
     return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
 
 
@@ -75,16 +84,23 @@ class DynamicWeightRegressor:
             safe_set_random_state(model)
             predd = model.predict(X_image)
             mae = np.mean(np.abs(predd - y_lab))
-            
+            base_mae.append(mae)
             print(f"{name} MAE: {mae:.2f}")
             base_preds.append(predd.reshape(-1, 1))
 
         base_preds = np.hstack(base_preds)
+        real_errors = base_preds - y_lab.reshape(-1, 1)
         predicted_errors = self.meta_model.predict(X_meta)
-
+        showme(real_errors - predicted_errors)
         #y_pred = np.sum(np.divide(base_preds - predicted_errors,2), axis=1)
-        weights = 1 / (predicted_errors + 1e-8)
+
+        tot = np.sum(predicted_errors, axis=1, keepdims=True)
+        weights = ((tot - predicted_errors) / tot)
+        #weights = np.exp(-4 * predicted_errors)
         weights = weights / np.sum(weights, axis=1, keepdims=True)
+
+        #weights = 1 / (predicted_errors + 1e-8)
+        #weights = weights / np.sum(weights, axis=1, keepdims=True)
 
         # Apply weights row-wise
         y_pred = np.sum(base_preds * weights, axis=1)
@@ -95,8 +111,11 @@ def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False
     # Base models
     base_models = {
         "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        #"HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
-        "KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
+        "HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
+        #"KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
+        "RF": model_RF(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
+        "STack": stacking_reg(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
+        #"ADA": model_ADA(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
         }
     #"LLR": model_log_linear(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
     
@@ -120,6 +139,143 @@ def load_best_params(model_name, save_dir="saved_params"):
 
 
 
+def model_RF(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    
+    
+    if gridsearch:
+        if personalized_pre_processing:
+            model_name = "RandomForestRegressor_pipe"
+            model = Pipeline([
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
+            #('scaler', StandardScaler()),
+            #('dim_reduction', PCA(n_components=50)),
+            ('regressor',  RandomForestRegressor(n_jobs=-1))
+            ])
+            param_space = {
+    'regressor__n_estimators': Integer(30, 400),
+    'regressor__max_depth': Integer(1, 50),
+    'regressor__max_features': Categorical(['sqrt', 'log2']),
+    'regressor__min_samples_split': Integer(2, 10),
+    'regressor__min_samples_leaf': Integer(1, 4),
+}
+        else:
+            model_name = "RandomForestRegressor"
+            model = RandomForestRegressor(n_estimators = 400, n_jobs=-1)
+            param_space = {
+    #'n_estimators': Integer(30, 400,),
+    'max_depth': Integer(1, 50),
+    'max_features': Categorical(['sqrt', 'log2']),
+    'min_samples_split': Integer(2, 10),
+    'min_samples_leaf': Integer(1, 4),
+}
+
+
+        param_grid = {
+        'max_depth': [None, 10],
+        'max_features': ['sqrt', 'log2'],
+        'min_samples_split': [2, 5],
+        'min_samples_leaf': [1, 2],
+        #'bootstrap': [True, False]
+    }
+        
+        if gridsearch==2:
+            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, save_params=True, model_name=model_name)
+        else:
+            best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
+        return best_model
+    else:
+        if personalized_pre_processing:
+            model_name = "RandomForestRegressor_pipe"
+            model = Pipeline([
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
+            #('scaler', StandardScaler()),
+            #('dim_reduction', PCA(n_components=100)),
+            ('regressor',  RandomForestRegressor(n_jobs=-1))
+            ])
+        else:
+            model_name = "RandomForestRegressor"
+            model =  RandomForestRegressor(n_jobs=-1)
+        best_params = load_best_params(model_name)
+        if best_params:
+
+            model.set_params(**best_params)
+            safe_set_random_state(model,42)
+            return model
+        else:
+            model =  RandomForestRegressor()
+            safe_set_random_state(model,42)
+            return model
+
+
+def model_ADA(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    
+    
+    if gridsearch:
+        if personalized_pre_processing:
+            model_name = "AdaBoostRegressor_pipe"
+            model = Pipeline([
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=0.95)),
+            ('regressor',  AdaBoostRegressor(estimator=RandomForestRegressor( n_jobs=-1),random_state=42))
+            ])
+            param_space = {
+    'regressor__n_estimators': Integer(50, 300),
+    'regressor__learning_rate': Real(0.01, 1.0, prior='log-uniform'),
+    'regressor__loss': Categorical(['linear', 'square', 'exponential']),
+    'regressor__estimator__max_depth': Integer(1, 20),
+}
+        else:
+            model_name = "AdaBoostRegressor"
+            model = AdaBoostRegressor(estimator=RandomForestRegressor(n_jobs=-1),random_state=42)
+            param_space = {
+    'n_estimators': Integer(50, 300),
+    'learning_rate': Real(0.01, 1.0, prior='log-uniform'),
+    'estimator__max_depth': Integer(1, 20),
+    'loss': Categorical(['linear', 'square', 'exponential']),
+    'estimator__max_depth': Integer(2, 10)
+            }
+
+
+        param_grid = {
+    'n_estimators': [50, 100, 200],
+    'learning_rate': [0.01, 0.1, 1.0],
+    'estimator__max_depth': [1, 3, 5],
+    'loss': ['linear', 'square', 'exponential'],
+}
+        if gridsearch==2:
+            best_model, best_params = bayesian_search_model_with_progress(model, param_space, X_train, y_train, save_params=True, model_name=model_name)
+        else:
+            best_model, best_params = grid_search_model_PB(model, param_grid, X_train, y_train)
+        return best_model
+    else:
+        if personalized_pre_processing:
+            model_name = "AdaBoostRegressor_pipe"
+            model = Pipeline([
+            #('resize', FunctionTransformer(resize_data, validate=False)),  
+            ('scaler', StandardScaler()),
+            ('dim_reduction', PCA(n_components=0.95)),
+            ('regressor',  AdaBoostRegressor(
+        estimator=RandomForestRegressor(n_jobs=-1),
+        random_state=42
+    ))
+            ])
+        else:
+            model_name = "AdaBoostRegressor"
+            model =  AdaBoostRegressor(estimator=RandomForestRegressor(n_jobs=-1),random_state=42)
+        best_params = load_best_params(model_name)
+        if best_params:
+
+            model.set_params(**best_params)
+            safe_set_random_state(model,42)
+            return model
+        else:
+            model =  AdaBoostRegressor(estimator=RandomForestRegressor(n_jobs=-1),random_state=42)
+            safe_set_random_state(model,42)
+            return model
+
+
+
 def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     
     
@@ -129,7 +285,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=50)),
+            ('dim_reduction', PCA(n_components=0.95)),
             ('regressor',  KernelRidge())
             ])
             param_space = {
@@ -169,7 +325,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=50)),
+            ('dim_reduction', PCA(n_components=0.95)),
             ('regressor',  KernelRidge())
             ])
         else:
@@ -198,7 +354,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=400)),
+            ('dim_reduction', PCA(n_components=0.95)),
             ('regressor', KNeighborsRegressor())
         ])
         
@@ -288,8 +444,8 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         print("Using full pipeline with built-in loading")
         hist_pipeline = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),
-            ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=100)),
+            #('scaler', StandardScaler()),
+            #('dim_reduction', PCA(n_components=100)),
             ('regressor', HistGradientBoostingRegressor())
         ])
         
@@ -297,13 +453,10 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         if bool(gridsearch):
             param_grid = {
                 'learning_rate': [0.01, 0.05, 0.1, 0.2],
-                'n_iter_no_change': [5, 10, 20],
+                #'n_iter_no_change': [5, 10, 20],
                 'max_iter': [100, 200, 500],
                 'max_depth': [3, 5, 7],
                 'min_samples_leaf': [5, 10, 20],
-                'max_bins': [50, 100, 255],
-                'early_stopping': [True],  # Optional, based on whether you want to use early stopping
-                'loss': ['squared_error', 'absolute_error'],  # Optional, based on your preference
             }
 
             param_space = {
@@ -333,13 +486,13 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             model = HistGradientBoostingRegressor()
             param_grid = {
                 'learning_rate': [0.01, 0.05, 0.1, 0.2],
-                'n_iter_no_change': [5, 10, 20],
+                #'n_iter_no_change': [5, 10, 20],
                 'max_iter': [100, 200, 500],
                 'max_depth': [3, 5, 7],
                 'min_samples_leaf': [5, 10, 20],
-                'max_bins': [50, 100, 255],
-                'early_stopping': [True],  # Optional, based on whether you want to use early stopping
-                'loss': ['squared_error', 'absolute_error'],  # Optional, based on your preference
+                #'max_bins': [50, 100, 255],
+                #'early_stopping': [True],  # Optional, based on whether you want to use early stopping
+                #'loss': ['squared_error', 'absolute_error'],  # Optional, based on your preference
             }
 
             param_space = {
@@ -370,11 +523,11 @@ class InverseLogTransformer:
     def transform(self, X):
         return np.expm1(X)  # np.expm1 is the inverse of np.log1p
 
-def model_log_linear(gridsearch=False, personalized_pre_processing=False, X_train=None, y_train=None): 
+def model_log_linear(gridsearch=False, personalized_pre_processing=True, X_train=None, y_train=None): 
     model_name = "LogLinearRegression"
     random_state = 42  # Consistent seed for all models
-    if y_train is None or len(y_train) == 0:
-        raise ValueError("y_train is None or empty. Please provide a valid target variable.")
+    #if y_train is None or len(y_train) == 0:
+    #    raise ValueError("y_train is None or empty. Please provide a valid target variable.")
     # Log transformation of target variable automatically within the pipeline
     log_transformer = FunctionTransformer(np.log1p, validate=True)  # np.log1p is log(x + 1)
     
@@ -393,7 +546,7 @@ def model_log_linear(gridsearch=False, personalized_pre_processing=False, X_trai
         
         model = log_linear_pipeline
         
-        model.fit(X_train, y_train)  # Automatically log-transform and fit the model
+        #model.fit(X_train, y_train)  # Automatically log-transform and fit the model
         return model
     else:
         # If no personalized pre-processing, fit a simple log-linear model
@@ -402,29 +555,45 @@ def model_log_linear(gridsearch=False, personalized_pre_processing=False, X_trai
         model.fit(X_train, y_train_log)
         return model
 
+def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    base_models = [
+    ('knn', KNeighborsRegressor(algorithm = "brute", n_neighbors=3, weights = "distance", p = 1)),
+    ('kr', KernelRidge(alpha=1.0, gamma=0.02 ,degree=3,kernel="linear")),
+]
+    safe_set_random_state(base_models[0][1],42)
+    safe_set_random_state(base_models[1][1],42)
+    # Final estimator
+    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
+    safe_set_random_state(final_model,42)
+    # Stacking regressor
+    model = StackingRegressor(
+        estimators=base_models,
+        final_estimator=final_model,
+        cv=5,
+        passthrough=True,
+        n_jobs=-1
+    )
+    return model
 
-
-def model_RF(gs=False, personalized_pre_processing = False, X_train=None, y_train=None):
-    model_name = "RandomForestRegressor"
-    random_state = 42
-
-    if gs:
-        model = RandomForestRegressor(random_state=random_state)
-        param_grid = {
-            'n_estimators': [100, 200],
-            'max_depth': [None, 10],
-            'max_features': ['auto', 'sqrt'],
-            'random_state': [random_state]  # Locked for grid search
-        }
-        best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
-        return best_model
-    else:
-        best_params = load_best_params(model_name)
-        if best_params:
-            return RandomForestRegressor(**best_params, random_state=random_state)
-        else:
-            return RandomForestRegressor(random_state=random_state)
-
+def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    base_models = [
+    ('knn', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan")),
+    ('kr', KernelRidge(alpha=5.3816109881943376e-05, gamma=0.0001 ,degree=3,kernel="poly")),
+]
+    safe_set_random_state(base_models[0][1],42)
+    safe_set_random_state(base_models[1][1],42)
+    # Final estimator
+    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
+    safe_set_random_state(final_model,42)
+    # Stacking regressor
+    model = StackingRegressor(
+        estimators=base_models,
+        final_estimator=final_model,
+        cv=5,
+        passthrough=True,
+        n_jobs=-1
+    )
+    return model
 
 def model_GB(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "GradientBoostingRegressor"

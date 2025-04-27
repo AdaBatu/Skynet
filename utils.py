@@ -1,5 +1,5 @@
 """Utility functions for project 1."""
-from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region, meta_finder
+from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region, meta_finder, adjust_brightness_to_mean,doandmask
 import yaml
 import os
 import numpy as np
@@ -38,6 +38,174 @@ def load_config():
     return config
 
 
+def dataset_process(config, split, cum, dyna ,row):
+    image = Image.open(config["data_dir"] / f"{split}_images" / f"{row['ID']}.png")
+    raw_img = image.copy()
+    if not config["load_rgb"]:
+        image = image.convert("L")
+
+    raw_img = np.asarray(raw_img)
+    image_np = np.asarray(image)
+    
+    match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+        case 0:
+            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        case 1:
+            feature_vec = image_np
+        case 2:
+            feature_vec = hog_area(raw_img,True,False)
+        case 3:
+            feature_vec = hog_area(raw_img,True,True)
+        case 4:
+            feature_vec = detect_floor_region(image_np)
+        case 5:
+            image = image.resize(
+                (
+                    IMAGE_SIZE[0] // config["downsample_factor"],
+                    IMAGE_SIZE[1] // config["downsample_factor"],
+                ),
+                resample=Image.BILINEAR,
+            )
+            image_np = np.asarray(image)
+            feature_vec_re = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)  
+        case 6:
+            feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
+        case 7:
+            feature_vec = doandmask(image_np)
+    if dyna:
+        meta_features = meta_finder(raw_img)
+
+        
+    feature_vec_re = cv2.resize(feature_vec,
+         (
+             IMAGE_SIZE[0] // config["downsample_factor"],
+             IMAGE_SIZE[1] // config["downsample_factor"],
+         ), interpolation=cv2.INTER_LINEAR).reshape(-1)   
+    
+    return (meta_features, feature_vec_re) if dyna else (None, feature_vec_re)
+
+def load_custom_dataset(config, split="train", cum = 1, dyna=False):
+    X_meta_list = []
+    labels = pd.read_csv(
+        config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
+    )
+
+    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
+        IMAGE_SIZE[1] // config["downsample_factor"]
+    )
+    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
+
+    images = np.zeros((len(labels), feature_dim))
+    all_features = []
+    #for _, row in labels.iterrows():
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda row: dataset_process(config, split, cum, dyna ,row))(row)
+    for _, row in tqdm(labels.iterrows(), desc="Processing Rows", total=len(labels))
+    )
+
+    X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
+    X_meta = np.array(X_meta_list)
+    images = np.vstack(all_features)
+    distances = labels["distance"].to_numpy()
+    return X_meta, images, distances
+
+
+
+def process_image(config, cum, dyna, img_file, img_root):
+    image = Image.open(os.path.join(img_root, img_file))
+    raw_img = image
+    if not config["load_rgb"]:
+        image = image.convert("L")
+    raw_img = np.asarray(raw_img)
+    image_np = np.asarray(image)
+    image_flat = image_np.reshape(-1)
+    feature_vec = None
+    match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+        case 0:
+            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
+        case 1:
+            feature_vec = image_np
+        case 2:
+            feature_vec = hog_area(raw_img,True,False)
+        case 3:
+            feature_vec = hog_area(raw_img,True,True)
+        case 4:
+            feature_vec = detect_floor_region(image_np)
+        case 5:
+            image = image.resize(
+                (
+                    IMAGE_SIZE[0] // config["downsample_factor"],
+                    IMAGE_SIZE[1] // config["downsample_factor"],
+                ),
+                resample=Image.BILINEAR,
+            )
+            image_np = np.asarray(image)
+            feature_vec_re = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB).reshape(-1)  
+        case 6:
+            feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
+        case 7:
+            feature_vec = doandmask(image_np)
+    if dyna:
+        meta_features = meta_finder(raw_img)
+
+        
+    feature_vec_re = cv2.resize(feature_vec,
+         (
+             IMAGE_SIZE[0] // config["downsample_factor"],
+             IMAGE_SIZE[1] // config["downsample_factor"],
+         ), interpolation=cv2.INTER_LINEAR).reshape(-1) 
+
+    return (meta_features, feature_vec_re) if dyna else (None, feature_vec_re)
+
+
+def load_test_custom_dataset(config, cum, dyna=False):
+    X_meta_list = []
+    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
+        IMAGE_SIZE[1] // config["downsample_factor"]
+    )
+    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
+    all_features = []
+    images = []
+    img_root = os.path.join(config["data_dir"], "test_images")
+    #progressbar = tqdm(total=len(os.listdir(img_root)), desc="Processing images")
+    img_files = (os.listdir(img_root))
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda row: process_image(config, cum, dyna, img_file, img_root))(img_file)
+    for img_file in tqdm(img_files, desc="Processing Rows", total=len(img_files))
+    )
+
+    X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
+
+    X_meta = np.array(X_meta_list)
+    images = np.vstack(all_features)
+    #progressbar.close()
+    return X_meta, images
+
+
+def print_results(gt, pred):
+    print(f"MAE: {round(mean_absolute_error(gt, pred)*100, 3)}")
+    print(f"R2: {round(r2_score(gt, pred)*100, 3)}")
+
+
+def save_results(pred):
+    text = "ID,Distance\n"
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    for i, distance in enumerate(pred):
+        text += f"{i:03d},{distance}\n"
+
+    with open(f"prediction_{timestamp}_.csv", 'w') as f: 
+        f.write(text)
+
+def save_model(model):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"models/random_forest_model_{timestamp}.pkl"
+    
+    joblib.dump(model, filename)
+    print(f"[INFO] Model saved to: {filename}")
+
+
+
+"""
 def load_dataset(config, split="train"):
     labels = pd.read_csv(
         config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
@@ -70,71 +238,9 @@ def load_dataset(config, split="train"):
 
     distances = labels["distance"].to_numpy()
     return images, distances
+"""
 
-
-def dataset_process(config, split, cum, dyna ,row):
-    image = Image.open(config["data_dir"] / f"{split}_images" / f"{row['ID']}.png")
-    raw_img = image
-    if not config["load_rgb"]:
-        image = image.convert("L")
-    raw_img = np.asarray(raw_img)
-    image_np = np.asarray(image)
-    
-    
-    match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
-        case 0:
-            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-        case 1:
-            feature_vec = image_np
-        case 2:
-            feature_vec = hog_area(raw_img,True,False)
-        case 3:
-            feature_vec = hog_area(raw_img,True,True)
-        case 4:
-            feature_vec = detect_floor_region(image_np)
-        case 5:
-            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
-        case 6:
-            feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
-    if dyna:
-        meta_features = meta_finder(feature_vec)
-        #X_meta_list.append(meta_features)
-    feature_vec = cv2.resize(feature_vec,
-        (
-            IMAGE_SIZE[0] // config["downsample_factor"],
-            IMAGE_SIZE[1] // config["downsample_factor"],
-        ), interpolation=cv2.INTER_LINEAR).reshape(-1)   
-    
-    #all_features.append(feature_vec)
-    #progressbar.update()
-    return (meta_features, feature_vec) if dyna else (None, feature_vec)
-
-def load_custom_dataset(config, split="train", cum = 1, dyna=False):
-    X_meta_list = []
-    labels = pd.read_csv(
-        config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
-    )
-
-    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
-        IMAGE_SIZE[1] // config["downsample_factor"]
-    )
-    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
-
-    images = np.zeros((len(labels), feature_dim))
-    all_features = []
-    #for _, row in labels.iterrows():
-    results = Parallel(n_jobs=-1)(
-    delayed(lambda row: dataset_process(config, split, cum, dyna ,row))(row)
-    for _, row in tqdm(labels.iterrows(), desc="Processing Rows", total=len(labels))
-    )
-
-    X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
-    X_meta = np.array(X_meta_list)
-    images = np.vstack(all_features)
-    distances = labels["distance"].to_numpy()
-    return X_meta, images, distances
-
-
+"""
 def load_test_dataset(config):
     feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
         IMAGE_SIZE[1] // config["downsample_factor"]
@@ -159,126 +265,7 @@ def load_test_dataset(config):
             images.append(image)
 
     return images
-
-def process_image(config, cum, dyna, img_file, img_root):
-    image = Image.open(os.path.join(img_root, img_file))
-    raw_img = image
-    if not config["load_rgb"]:
-        image = image.convert("L")
-    raw_img = np.asarray(raw_img)
-    image_np = np.asarray(image)
-    image_flat = image_np.reshape(-1)
-    
-    match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things
-        case 0:
-            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-        case 1:
-            feature_vec = image_np
-        case 2:
-            feature_vec = hog_area(raw_img, True, False)
-        case 3:
-            feature_vec = hog_area(raw_img, True, True)
-        case 4:
-            feature_vec = detect_floor_region(image_np)
-        case 5:
-            feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
-        case 6:
-            feature_vec = apply_blue_tone_and_extract_feature(image_np, False)
-    
-    if dyna:
-        meta_features = meta_finder(feature_vec)
-    feature_vec = cv2.resize(feature_vec,
-        (
-            IMAGE_SIZE[0] // config["downsample_factor"],
-            IMAGE_SIZE[1] // config["downsample_factor"],
-        ), interpolation=cv2.INTER_LINEAR).reshape(-1)
-
-    return (meta_features, feature_vec) if dyna else (None, feature_vec)
-
-
-def load_test_custom_dataset(config, cum, dyna=False):
-    X_meta_list = []
-    feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
-        IMAGE_SIZE[1] // config["downsample_factor"]
-    )
-    feature_dim = feature_dim * 3 if config["load_rgb"] else feature_dim
-    all_features = []
-    images = []
-    img_root = os.path.join(config["data_dir"], "test_images")
-    #progressbar = tqdm(total=len(os.listdir(img_root)), desc="Processing images")
-    img_files = (os.listdir(img_root))
-    results = Parallel(n_jobs=-1)(
-    delayed(lambda row: process_image(config, cum, dyna, img_file, img_root))(img_file)
-    for img_file in tqdm(img_files, desc="Processing Rows", total=len(img_files))
-    )
-
-    X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
-
-    X_meta = np.array(X_meta_list)
-    images = np.vstack(all_features)
-    #progressbar.close()
-    return X_meta, images
-
-
-"""for img_file in sorted(os.listdir(img_root)):
-        if img_file.endswith(".png"):
-            image = Image.open(os.path.join(img_root, img_file))
-            raw_img = image
-            if not config["load_rgb"]:
-                image = image.convert("L")
-            raw_img = np.asarray(raw_img)
-            image_np = np.asarray(image)
-            image_flat = image_np.reshape(-1)
-            
-        match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
-            case 0:
-                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
-            case 1:
-                feature_vec = image_np
-            case 2:
-                feature_vec = hog_area(raw_img,True,False)
-            case 3:
-                feature_vec = hog_area(raw_img,True,True)
-            case 4:
-                feature_vec = detect_floor_region(image_np)
-            case 5:
-                feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2LAB)
-            case 6:
-                feature_vec = apply_blue_tone_and_extract_feature(image_np,False)
-        if dyna:
-            meta_features = meta_finder(feature_vec)
-            X_meta_list.append(meta_features)
-        feature_vec = cv2.resize(feature_vec,
-            (
-                IMAGE_SIZE[0] // config["downsample_factor"],
-                IMAGE_SIZE[1] // config["downsample_factor"],
-            ), interpolation=cv2.INTER_LINEAR).reshape(-1)   
-          
-        all_features.append(feature_vec)
-        progressbar.update(1)"""
-
-
-
-def print_results(gt, pred):
-    print(f"MAE: {round(mean_absolute_error(gt, pred)*100, 3)}")
-    print(f"R2: {round(r2_score(gt, pred)*100, 3)}")
-
-
-def save_results(pred):
-    text = "ID,Distance\n"
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    for i, distance in enumerate(pred):
-        text += f"{i:03d},{distance}\n"
-
-    with open(f"prediction_{timestamp}_.csv", 'w') as f: 
-        f.write(text)
-
-def save_model(model):
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"models/random_forest_model_{timestamp}.pkl"
-    
-    joblib.dump(model, filename)
-    print(f"[INFO] Model saved to: {filename}")
+"""
 
 ############################## pipeline ##########################################
 

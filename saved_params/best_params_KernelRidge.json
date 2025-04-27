@@ -1,7 +1,7 @@
 {
     "alpha": 1000.0,
     "coef0": 0.01,
-    "degree": 5,
-    "gamma": 0.0,
+    "degree": 2,
+    "gamma": 1.0,
     "kernel": "linear"
 }

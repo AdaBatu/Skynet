@@ -1,8 +1,8 @@
 {
-    "regressor__algorithm": "auto",
-    "regressor__leaf_size": 10,
+    "regressor__algorithm": "kd_tree",
+    "regressor__leaf_size": 100,
     "regressor__metric": "euclidean",
-    "regressor__n_neighbors": 2,
-    "regressor__p": 2,
+    "regressor__n_neighbors": 5,
+    "regressor__p": 1,
     "regressor__weights": "distance"
 }

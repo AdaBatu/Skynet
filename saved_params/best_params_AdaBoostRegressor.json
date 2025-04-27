@@ -1,0 +1,6 @@
+{
+    "estimator__max_depth": 17,
+    "learning_rate": 0.13716271904919733,
+    "loss": "square",
+    "n_estimators": 20
+}

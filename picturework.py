@@ -9,8 +9,8 @@ from scipy import ndimage  # Use scipy.ndimage for convolution
 import matplotlib.pyplot as plt
 import time
 from skimage.feature import hog
-from skimage import color
 from cupyx.scipy import ndimage as cpx_ndimage
+from PIL import Image
 
 def get_color_difference_gpu(pixel1, pixel2):
     """
@@ -550,50 +550,30 @@ def process_and_color_floor_3(image_path, output_dir, save_output=1, floor_color
     return result
 
 
-
-def adjust_brightness_to_mean(image_path, output_folder, target_mean=128.0):
-    """
-    Adjusts the brightness of an image so that its mean brightness
-    matches the target_mean.
-
-    Parameters:
-        image_path (str): Path to the input image.
-        target_mean (float): Desired mean brightness (default is 128.0).
-
-    Returns:
-        numpy.ndarray: Brightness-adjusted image (dtype=uint8).
-    """
+def adjust_brightness_to_mean(image_np, target_mean=128.0):
+  
     # Load image using OpenCV (BGR format, uint8)
-    image_np = cv2.imread(str(image_path))
-    if image_np is None:
-        raise ValueError(f"Could not load image from {image_path}")
-    
     # Convert to float32 and move to GPU
-    image_cp = cp.asarray(image_np, dtype=cp.float32)
+    #image_cp = cp.asarray(image_np, dtype=cp.float32)
 
     # Split into B, G, R channels
-    channels = cp.split(image_cp, indices_or_sections=3, axis=2)
+    channels = np.split(image_np, indices_or_sections=3, axis=2)
 
     # Adjust each channel independently
     adjusted_channels = []
     for ch in channels:
-        mean_val = cp.mean(ch)
+        mean_val = np.mean(ch)
         shift = target_mean - mean_val
-        ch_adjusted = cp.clip(ch + shift, 0, 255)
+        ch_adjusted = np.clip(ch + shift, 0, 255)
         adjusted_channels.append(ch_adjusted)
 
     # Merge channels back together
-    adjusted_cp = cp.concatenate(adjusted_channels, axis=2).astype(cp.uint8)
-    adjusted_np = cp.asnumpy(adjusted_cp)
+    adjusted_cp = np.concatenate(adjusted_channels, axis=2).astype(np.uint8)
+    #adjusted_np = cp.asnumpy(adjusted_cp)
 
-    result_bgr = cv2.cvtColor(adjusted_np, cv2.COLOR_RGB2BGR)
+    #result_bgr = cv2.cvtColor(adjusted_cp, cv2.COLOR_RGB2BGR)
 
-    output_dir = Path(output_folder)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    output_file = output_dir / f"{image_path.stem}_processed.png"
-    cv2.imwrite(str(output_file), result_bgr)
-    return result_bgr
+    return adjusted_cp
 
 
 def adjust_image_using_floor_reference(image_path, output_folder, target_floor_color=(80, 80, 80), floor_pct=0.2):
@@ -708,78 +688,44 @@ def apply_blue_tone_and_extract_feature(image_rgb, save = False, output_folder =
     return result_bgr
 
 def detect_floor_region(image_rgb):
-    """
-    Detects the region of the floor (road/driveway/hallway) in an image
-    based on color gradients and blob detection.
 
-    Parameters:
-        image_path (str): Path to the input image.
-
-    Returns:
-        image (numpy.ndarray): The image with the detected floor region outlined.
-    """
     new_img = image_rgb
+    kvar = 3
+
     # Calculate the gradient magnitude for each channel (R, G, B)
-    grad_x_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 1, 0, ksize=3)
-    grad_y_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 0, 1, ksize=3)
-    grad_x_g = cv2.Sobel(image_rgb[:, :, 1], cv2.CV_64F, 1, 0, ksize=3)
-    grad_y_g = cv2.Sobel(image_rgb[:, :, 1], cv2.CV_64F, 0, 1, ksize=3)
-    grad_x_b = cv2.Sobel(image_rgb[:, :, 2], cv2.CV_64F, 1, 0, ksize=3)
-    grad_y_b = cv2.Sobel(image_rgb[:, :, 2], cv2.CV_64F, 0, 1, ksize=3)
+    grad_x_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 1, 0, ksize=kvar)
+    grad_y_r = cv2.Sobel(image_rgb[:, :, 0], cv2.CV_64F, 0, 1, ksize=kvar)
+    grad_x_g = cv2.Sobel(image_rgb[:, :, 1], cv2.CV_64F, 1, 0, ksize=kvar)
+    grad_y_g = cv2.Sobel(image_rgb[:, :, 1], cv2.CV_64F, 0, 1, ksize=kvar)
+    grad_x_b = cv2.Sobel(image_rgb[:, :, 2], cv2.CV_64F, 1, 0, ksize=kvar)
+    grad_y_b = cv2.Sobel(image_rgb[:, :, 2], cv2.CV_64F, 0, 1, ksize=kvar)
+
+    wol = grad_x_r + grad_y_r + grad_x_g + grad_y_g + grad_x_b + grad_y_b
+
 
     # Compute the gradient magnitudes for each channel
-    wol = grad_x_r + grad_y_r + grad_x_g + grad_y_g + grad_x_b + grad_y_b
+    
     wol_normalized = cv2.normalize(wol, None, 0, 255, cv2.NORM_MINMAX)
 
     # Convert to uint8 for displaying in plt.imshow
-    wol_display = np.round(wol_normalized.astype(np.uint8), 2)
+    wol_display = np.round(wol_normalized.astype(np.uint8), 4)
     wol_rgb = cv2.cvtColor(wol_display, cv2.COLOR_GRAY2RGB)
-# Plot the result
-    #plt.show() 
-    #time.sleep(10)
-    """
-    grad_mag_r = cv2.magnitude(grad_x_r, grad_y_r)
-    grad_mag_g = cv2.magnitude(grad_x_g, grad_y_g)
-    grad_mag_b = cv2.magnitude(grad_x_b, grad_y_b)
 
-    # Combine the gradient magnitudes from all channels (can weight them if needed)
-    gradient = np.sqrt(grad_mag_r**2 + grad_mag_g**2 + grad_mag_b**2)
-
-    # Threshold gradient to find significant color changes (edges)
-    _, gradient_thresholded = cv2.threshold(gradient.astype(np.uint8), 10, 255, cv2.THRESH_BINARY)
-
-    # Find contours of the blobs (connected regions with significant color change)
-    contours, _ = cv2.findContours(gradient_thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    # Get the contours and filter out the ones further from the bottom
-    height, width = image_rgb.shape[:2]
-    bottom_blob = None
-    bottom_position = -1
-    floor_contours = []
-
-    # Loop through the contours and find those closer to the bottom
-    for contour in contours:
-        x, y, w, h = cv2.boundingRect(contour)
-        center_y = y + h // 2
-        
-        # Keep the contours closer to the bottom
-        if center_y > bottom_position:
-            floor_contours.append(contour)
-            bottom_position = center_y
-
-    # Create a mask to fill the entire floor region
-    floor_mask = np.zeros_like(gradient_thresholded, dtype=np.uint8)
-
-    # Fill the floor region in the mask
-    cv2.drawContours(floor_mask, floor_contours, -1, (255), thickness=cv2.FILLED)
-
-    
-    # Apply the floor mask to the original image
-    floor_colored = np.zeros_like(new_img)
-    floor_colored[:, :] = [0, 255, 0]  # Green color for the floor region
-    new_img[floor_mask == 255] = floor_colored[floor_mask == 255]
-    """
     return wol_rgb
+
+
+def doandmask(image):
+    result = image.copy()
+    lol = detect_floor_region(image)
+    lol = adjust_brightness_to_mean(lol)
+    lol = np.where(lol > 120, 1, 0).astype(np.uint8)
+    wol_gray = cv2.cvtColor(lol, cv2.COLOR_RGB2GRAY)
+    #print(lol.shape)
+    mask_indices = (wol_gray != 1)
+    result[mask_indices, 0] = 0    # Red channel
+    result[mask_indices, 1] = 0    # Green channel
+    result[mask_indices, 2] = 255  # Blue channel
+    return result
 
 def hog_area(image, areainf = True, hogo = True):
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -792,7 +738,7 @@ def hog_area(image, areainf = True, hogo = True):
         mean_area = np.mean(areas) if areas else 0
 
     if hogo:
-        gray_image = color.rgb2gray(image) 
+        gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         hog_features, _ = hog(gray_image, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm='L2-Hys', visualize=True)
     if areainf & hogo:
      return np.concatenate([[max_area, mean_area], hog_features])
@@ -813,12 +759,11 @@ def meta_finder(image):
     areas = [cv2.contourArea(c) for c in contours]
     max_area = max(areas) if areas else 0
     mean_area = np.mean(areas) if areas else 0
-    floor_region = detect_floor_region(image)
-    floor_mean = floor_region.mean()
-    floor_std = floor_region.std()
-    floor_max = floor_region.max()
+    floor_region = doandmask(image)
+    gray_floor = cv2.cvtColor(floor_region, cv2.COLOR_RGB2GRAY)
+    gray_floor = np.array(gray_floor.resize((10,10))).reshape(-1)
 
-    return np.concatenate([[floor_mean, floor_std, floor_max], means, variances, [max_area, mean_area]])
+    return np.concatenate([gray_floor, means, variances, [max_area, mean_area]])
 
 
 

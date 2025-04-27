@@ -1,0 +1,8 @@
+{
+    "regressor__bootstrap": false,
+    "regressor__max_depth": 24,
+    "regressor__max_features": "sqrt",
+    "regressor__min_samples_leaf": 1,
+    "regressor__min_samples_split": 2,
+    "regressor__n_estimators": 1000
+}

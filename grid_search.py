@@ -76,15 +76,17 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
     # Define the search space using skopt's search space definitions
     search_space = {param: param_space[param] for param in param_space}
 
+    n_it = 50
+
     # Initialize the tqdm progress bar with a total of n_iter (iterations)
-    asd = progress(50, "Bayesian Search Progress")
+    asd = progress(n_it, "Bayesian Search Progress")
 
 
     # Set up the BayesSearchCV with the model and search space
     bayes_search = BayesSearchCV(
         model,
         search_space,
-        n_iter=50,  # Number of iterations
+        n_iter=n_it,  # Number of iterations
         cv=cv,
         n_jobs=-1,
         verbose=False,
