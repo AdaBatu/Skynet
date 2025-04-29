@@ -22,7 +22,7 @@ if __name__ == "__main__":
     gs = False
     dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 7   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if dyna:
         print("Using traditional approach with pre-processed arrays")
@@ -51,8 +51,8 @@ if __name__ == "__main__":
         print_results(y2_test, y_pred)
         y_dif= np.abs(y2_test - y_pred)*100
     else:
-        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=True)  
-        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=True)
+        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
+        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
 
         
         X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances, train_size=0.8, random_state=42)
@@ -67,9 +67,9 @@ if __name__ == "__main__":
             y_train=y_train
         )
         """
-        model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
         #model = model_RF(gs, False, X_train, y_train)
-        #model = stacking_reg()
+        model = stacking_reg()
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
         #model = HIST_BOOST(gs, False, X_train, y_train)
@@ -78,7 +78,7 @@ if __name__ == "__main__":
         
         # Prediction
         y_pred = model.predict(X1_test)
-        print_results(y1_test, y_pred)
+        print_results(y_test, y_pred)
         y_pred_ch = model.predict(X_test_ch)
         save_results(y_pred_ch)
         y_dif= np.abs(y1_test - y_pred)

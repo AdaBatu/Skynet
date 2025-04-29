@@ -577,7 +577,7 @@ def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None
 
 def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     base_models = [
-    ('knn', = Pipeline([('scaler', StandardScaler()),('dim_reduction', PCA(n_components=0.95)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
+    ('knn', Pipeline([('scaler', StandardScaler()),('dim_reduction', PCA(n_components=0.95)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
     ('kr', KernelRidge(alpha=5.3816109881943376e-05, gamma=0.0001 ,degree=3,kernel="poly")),
     ]
     safe_set_random_state(base_models[0][1],42)

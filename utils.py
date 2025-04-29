@@ -46,7 +46,7 @@ def dataset_process(config, split, cum, dyna ,row):
 
     raw_img = np.asarray(raw_img)
     image_np = np.asarray(image)
-    
+    feature_vec = np.zeros(3,3)
     match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
         case 0:
             feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
@@ -119,7 +119,7 @@ def process_image(config, cum, dyna, img_file, img_root):
     raw_img = np.asarray(raw_img)
     image_np = np.asarray(image)
     image_flat = image_np.reshape(-1)
-    feature_vec = None
+    feature_vec = np.zeros(3,3)
     match cum:          #0 for black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
         case 0:
             feature_vec = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
