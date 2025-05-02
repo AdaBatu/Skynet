@@ -12,7 +12,7 @@ from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import mplcursors
-from models import stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme
+from models import try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
 
 
 
@@ -55,8 +55,8 @@ if __name__ == "__main__":
         Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
 
         
-        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances, train_size=0.8, random_state=42)
-        X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.5, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(images, distances, train_size=0.8, random_state=42)
+        #X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.5, random_state=42)
 
         # Model - pipeline approach
         """model = model_KNN(
@@ -68,8 +68,9 @@ if __name__ == "__main__":
         )
         """
         #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        model = try_reg()
         #model = model_RF(gs, False, X_train, y_train)
-        model = stacking_reg()
+        #model = model_12()
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
         #model = HIST_BOOST(gs, False, X_train, y_train)
@@ -77,8 +78,8 @@ if __name__ == "__main__":
         model.fit(X_train, y_train)
         
         # Prediction
-        y_pred = model.predict(X1_test)
-        print_results(y_test, y_pred)
+        y_pred = model.predict(X_test)
+        print_results(y_pred, y_test)
         y_pred_ch = model.predict(X_test_ch)
         save_results(y_pred_ch)
         y_dif= np.abs(y1_test - y_pred)

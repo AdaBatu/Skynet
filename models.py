@@ -2,8 +2,9 @@ import cv2
 from sklearn.ensemble import RandomForestRegressor, StackingRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor, AdaBoostRegressor
+from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.linear_model import Ridge
+from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
 from grid_search import grid_search_model_PB, bayesian_search_model_with_progress
@@ -354,7 +355,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
             ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=0.95)),
+            ('dim_reduction', PCA(n_components=100)),
             ('regressor', KNeighborsRegressor())
         ])
         
@@ -586,6 +587,46 @@ def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=
     final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
     safe_set_random_state(final_model,42)
     # Stacking regressor
+    model = StackingRegressor(
+        estimators=base_models,
+        final_estimator=final_model,
+        cv=5,
+        passthrough=True,
+        n_jobs=-1
+    )
+    return model
+
+def try_reg():
+    knn_pipe = Pipeline([
+    ('scaler', StandardScaler()),
+    ('knn', KNeighborsRegressor(n_neighbors=5))
+    ])
+
+    ridge_pipe = Pipeline([
+        ('scaler', StandardScaler()),
+        ('ridge', RidgeCV(alphas=[0.1, 1.0, 10.0]))
+    ])
+
+    gpr_pipe = Pipeline([
+    ('pca', PCA(n_components=50)),  # Try 20–50 depending on variance retained
+    ('gpr', GaussianProcessRegressor())])
+
+
+    # Models that don't need scaling
+    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    gbr = GradientBoostingRegressor(n_estimators=100, random_state=42)
+
+    # Stacking regressor with mixed pipelines
+    base_models = [
+        ('knn', knn_pipe),
+        ('ridge', ridge_pipe),
+        ('rf', rf),
+        ('gbr', gbr)
+        ('pgr', gpr_pipe)
+    ]
+
+    final_model = RidgeCV()
+
     model = StackingRegressor(
         estimators=base_models,
         final_estimator=final_model,
