@@ -14,6 +14,7 @@ from sklearn.decomposition import PCA
 import cv2
 from PIL import Image, ImageOps, ImageFilter
 from tqdm import tqdm
+import matplotlib.pyplot as plt
 import joblib
 from datetime import datetime
 from joblib import Parallel, delayed
@@ -156,7 +157,7 @@ def process_image(config, cum, dyna, img_file, img_root):
              IMAGE_SIZE[0] // config["downsample_factor"],
              IMAGE_SIZE[1] // config["downsample_factor"],
          ), interpolation=cv2.INTER_LINEAR).reshape(-1) 
-
+        
     return (meta_features, feature_vec_re) if dyna else (None, feature_vec_re)
 
 
@@ -169,16 +170,14 @@ def load_test_custom_dataset(config, cum, dyna=False):
     all_features = []
     images = []
     img_root = os.path.join(config["data_dir"], "test_images")
-    #progressbar = tqdm(total=len(os.listdir(img_root)), desc="Processing images")
     img_files = (os.listdir(img_root))
+
     results = Parallel(n_jobs=-1)(
-    delayed(lambda row: process_image(config, cum, dyna, img_file, img_root))(img_file)
+    delayed(process_image)(config, cum, dyna, img_file, img_root)
     for img_file in tqdm(img_files, desc="Processing Rows", total=len(img_files))
-    )
-
+)
     X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
-
-    X_meta = np.array(X_meta_list)
+    X_meta = np.vstack(X_meta_list)
     images = np.vstack(all_features)
     #progressbar.close()
     return X_meta, images

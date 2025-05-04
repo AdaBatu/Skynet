@@ -581,12 +581,12 @@ def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None
 def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     base_models = [
     ('knn', Pipeline([('scaler', RobustScaler(quantile_range=(25,75))),('dim_reduction', PCA(n_components=45)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
-    ('kr', HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)),
+    ('kr', model_KNN(False,True)),
     ]
     safe_set_random_state(base_models[0][1],42)
     safe_set_random_state(base_models[1][1],42)
     # Final estimator
-    final_model = RidgeCV([0.01, 0.1, 1])
+    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
     safe_set_random_state(final_model,42)
     # Stacking regressor
     model = StackingRegressor(
@@ -596,7 +596,7 @@ def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=
         passthrough=True,
         n_jobs=-1
     )
-    
+
     return model
 
 def try_reg():
