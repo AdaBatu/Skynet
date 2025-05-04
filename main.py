@@ -1,3 +1,4 @@
+import os
 from sklearn.impute import SimpleImputer
 from utils import load_config, print_results, save_results, load_custom_dataset, load_test_custom_dataset
 import numpy as np
@@ -12,6 +13,7 @@ from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import time
+import pickle
 import mplcursors
 from models import try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
 
@@ -23,7 +25,7 @@ if __name__ == "__main__":
     gs = False
     dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 7   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 3   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if dyna:
         print("Using traditional approach with pre-processed arrays")
@@ -68,10 +70,27 @@ if __name__ == "__main__":
         print_results(y2_test, y_pred)
         y_dif= np.abs(y2_test - y_pred)*100
     else:
-        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
-        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
-
+        #Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
+        #Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
         
+        
+
+        if not os.path.exists(f"{preprocess_var}train.pkl"):
+            Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
+            Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
+            with open(f"{preprocess_var}train.pkl", "wb") as f:
+                pickle.dump([images,distances], f)
+            with open(f"{preprocess_var}test.pkl", "wb") as f:
+                pickle.dump(X_test_ch, f)
+        else:
+            print("files found! no preprocessing!")
+            with open(f"{preprocess_var}train.pkl", "rb") as f:
+                aa = pickle.load(f)
+                images, distances = np.array(aa[0]), np.array(aa[1])
+            with open(f"{preprocess_var}test.pkl", "rb") as f:
+                X_test_ch = pickle.load(f)   
+                X_test_ch = np.array(X_test_ch)
+
         X_train, X_test, y_train, y_test = train_test_split(images, distances, train_size=0.8, random_state=42)
         #X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.5, random_state=42)
 
@@ -87,11 +106,11 @@ if __name__ == "__main__":
         
         #model = try_reg()
         #model = model_12()
-        model = stacking_reg()
+        #model = stacking_reg()
 
 
         #model = model_RF(gs, False, X_train, y_train)
-        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
         #model = HIST_BOOST(gs, False, X_train, y_train)
@@ -99,9 +118,10 @@ if __name__ == "__main__":
         model.fit(X_train, y_train)
         # Prediction
         y_pred = model.predict(X_test)
-        print_results(y_pred, y_test)
+        mae = print_results(y_pred, y_test)
+        #model.fit(images,distances)
         y_pred_ch = model.predict(X_test_ch)
-        save_results(y_pred_ch)
+        save_results(y_pred_ch,mae,f"{model.__class__.__name__}")
         y_dif= np.abs(y_test - y_pred)*100
         
     # Accuracy and saving

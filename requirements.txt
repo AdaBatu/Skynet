@@ -11,3 +11,4 @@ matplotlib
 tqdm
 mplcursors
 scikit-optimize
+pickle

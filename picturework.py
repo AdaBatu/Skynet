@@ -741,8 +741,8 @@ def hog_area(image, areainf = True, hogo = True):
         gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
         hog_features, _ = hog(
     gray_image,
-    orientations=9,
-    pixels_per_cell=(15, 15),
+    orientations=9,  #9
+    pixels_per_cell=(15,15),  #15,15
     cells_per_block=(2, 2),
     block_norm='L2-Hys',
     visualize=True

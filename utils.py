@@ -177,7 +177,7 @@ def load_test_custom_dataset(config, cum, dyna=False):
     for img_file in tqdm(img_files, desc="Processing Rows", total=len(img_files))
 )
     X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])
-    X_meta = np.vstack(X_meta_list)
+    X_meta = np.array(X_meta_list)
     images = np.vstack(all_features)
     #progressbar.close()
     return X_meta, images
@@ -186,15 +186,16 @@ def load_test_custom_dataset(config, cum, dyna=False):
 def print_results(gt, pred):
     print(f"MAE: {round(mean_absolute_error(gt, pred)*100, 3)}")
     print(f"R2: {round(r2_score(gt, pred)*100, 3)}")
+    return round(mean_absolute_error(gt, pred)*100, 3)
 
 
-def save_results(pred):
+def save_results(pred, mae = 0, note = "nonote"):
     text = "ID,Distance\n"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     for i, distance in enumerate(pred):
         text += f"{i:03d},{distance}\n"
 
-    with open(f"prediction_{timestamp}_.csv", 'w') as f: 
+    with open(f"prediction_mae_{str(mae)}__{note}__{timestamp}.csv", 'w') as f: 
         f.write(text)
 
 def save_model(model):

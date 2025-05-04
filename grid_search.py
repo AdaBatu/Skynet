@@ -76,7 +76,7 @@ def bayesian_search_model_with_progress(model, param_space, X_train=None, y_trai
     # Define the search space using skopt's search space definitions
     search_space = {param: param_space[param] for param in param_space}
 
-    n_it = 50
+    n_it = 100
 
     # Initialize the tqdm progress bar with a total of n_iter (iterations)
     asd = progress(n_it, "Bayesian Search Progress")

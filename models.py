@@ -357,7 +357,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
             ('scaler', RobustScaler(quantile_range=(17,74))),
-            ('dim_reduction', PCA(n_components=50)),
+            ('dim_reduction', PCA(n_components=90)),
             ('regressor', KNeighborsRegressor())
         ])
         
