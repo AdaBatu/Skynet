@@ -3,6 +3,7 @@ from sklearn.ensemble import RandomForestRegressor, StackingRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor, AdaBoostRegressor
 from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.mixture import GaussianMixture
 from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
@@ -13,7 +14,7 @@ from skopt.space import Real, Integer, Categorical
 import json
 import os 
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, FunctionTransformer
+from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTransformer
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.decomposition import PCA
@@ -21,6 +22,7 @@ from utils import ImagePreprocessor, load_config
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import mplcursors
+from scalers import ClusterBasedScaler
 
 def safe_set_random_state(model, seed=42):
     # Try to set random_state if it's a valid param
@@ -148,7 +150,7 @@ def model_RF(gridsearch=False, personalized_pre_processing = False ,X_train=None
             model_name = "RandomForestRegressor_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            #('scaler', StandardScaler()),
+            #('scaler', RobustScaler(quantile_range=(25,75))),
             #('dim_reduction', PCA(n_components=50)),
             ('regressor',  RandomForestRegressor(n_jobs=-1))
             ])
@@ -189,7 +191,7 @@ def model_RF(gridsearch=False, personalized_pre_processing = False ,X_train=None
             model_name = "RandomForestRegressor_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            #('scaler', StandardScaler()),
+            #('scaler', RobustScaler(quantile_range=(25,75))),
             #('dim_reduction', PCA(n_components=100)),
             ('regressor',  RandomForestRegressor(n_jobs=-1))
             ])
@@ -216,8 +218,8 @@ def model_ADA(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model_name = "AdaBoostRegressor_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=0.95)),
+            ('scaler', RobustScaler(quantile_range=(25,75))),
+            ('dim_reduction', PCA(n_components=45)),
             ('regressor',  AdaBoostRegressor(estimator=RandomForestRegressor( n_jobs=-1),random_state=42))
             ])
             param_space = {
@@ -254,7 +256,7 @@ def model_ADA(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model_name = "AdaBoostRegressor_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            ('scaler', StandardScaler()),
+            ('scaler', RobustScaler(quantile_range=(25,75))),
             ('dim_reduction', PCA(n_components=0.95)),
             ('regressor',  AdaBoostRegressor(
         estimator=RandomForestRegressor(n_jobs=-1),
@@ -285,8 +287,8 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model_name = "KernelRidge_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=0.95)),
+            ('scaler', RobustScaler(quantile_range=(25,75))),
+            ('dim_reduction', PCA(n_components=60)),
             ('regressor',  KernelRidge())
             ])
             param_space = {
@@ -325,7 +327,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model_name = "KernelRidge_pipe"
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
-            ('scaler', StandardScaler()),
+            ('scaler', RobustScaler(quantile_range=(25,75))),
             ('dim_reduction', PCA(n_components=0.95)),
             ('regressor',  KernelRidge())
             ])
@@ -354,8 +356,8 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         # Pipeline approach - will handle its own loading
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
-            ('scaler', StandardScaler()),
-            ('dim_reduction', PCA(n_components=100)),
+            ('scaler', RobustScaler(quantile_range=(17,74))),
+            ('dim_reduction', PCA(n_components=50)),
             ('regressor', KNeighborsRegressor())
         ])
         
@@ -368,7 +370,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
     'regressor__metric': Categorical(['euclidean', 'manhattan']),
     'regressor__algorithm': Categorical(['auto', 'ball_tree', 'kd_tree', 'brute']),
     'regressor__leaf_size': Integer(10, 100),
-    'regressor__p': Integer(1, 2),
+    'regressor__p': Integer(1, 3),
             }
             if gridsearch==2:
                 best_model, best_params = bayesian_search_model_with_progress(knn_pipeline, param_space, X_train, y_train,save_params=True, model_name=model_name)
@@ -445,7 +447,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
         print("Using full pipeline with built-in loading")
         hist_pipeline = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),
-            #('scaler', StandardScaler()),
+            #('scaler', RobustScaler(quantile_range=(25,75))),
             #('dim_reduction', PCA(n_components=100)),
             ('regressor', HistGradientBoostingRegressor())
         ])
@@ -538,7 +540,7 @@ def model_log_linear(gridsearch=False, personalized_pre_processing=True, X_train
         
         log_linear_pipeline = Pipeline([
             ('log_transform', log_transformer),  # Apply log transformation to target during training
-            ('scaler', StandardScaler()),
+            ('scaler', RobustScaler(quantile_range=(25,75))),
             ('dim_reduction', PCA(n_components=50)),
             ('regressor', LinearRegression()),
             ('inverse_log', InverseLogTransformer())  # Apply inverse transformation after predictions
@@ -578,13 +580,13 @@ def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None
 
 def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     base_models = [
-    ('knn', Pipeline([('scaler', StandardScaler()),('dim_reduction', PCA(n_components=0.95)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
-    ('kr', KernelRidge(alpha=5.3816109881943376e-05, gamma=0.0001 ,degree=3,kernel="poly")),
+    ('knn', Pipeline([('scaler', RobustScaler(quantile_range=(25,75))),('dim_reduction', PCA(n_components=45)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
+    ('kr', HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)),
     ]
     safe_set_random_state(base_models[0][1],42)
     safe_set_random_state(base_models[1][1],42)
     # Final estimator
-    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
+    final_model = RidgeCV([0.01, 0.1, 1])
     safe_set_random_state(final_model,42)
     # Stacking regressor
     model = StackingRegressor(
@@ -594,16 +596,17 @@ def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=
         passthrough=True,
         n_jobs=-1
     )
+    
     return model
 
 def try_reg():
     knn_pipe = Pipeline([
-    ('scaler', StandardScaler()),
+    ('scaler', RobustScaler(quantile_range=(25,75))),
     ('knn', KNeighborsRegressor(n_neighbors=5))
     ])
 
     ridge_pipe = Pipeline([
-        ('scaler', StandardScaler()),
+        ('scaler', RobustScaler(quantile_range=(25,75))),
         ('ridge', RidgeCV(alphas=[0.1, 1.0, 10.0]))
     ])
 
@@ -614,14 +617,14 @@ def try_reg():
 
     # Models that don't need scaling
     rf = RandomForestRegressor(n_estimators=100, random_state=42)
-    gbr = GradientBoostingRegressor(n_estimators=100, random_state=42)
+    gbr = GradientBoostingRegressor(n_estimators=400, random_state=42)
 
     # Stacking regressor with mixed pipelines
     base_models = [
         ('knn', knn_pipe),
         ('ridge', ridge_pipe),
         ('rf', rf),
-        ('gbr', gbr)
+        ('gbr', gbr),
         ('pgr', gpr_pipe)
     ]
 
@@ -635,6 +638,12 @@ def try_reg():
         n_jobs=-1
     )
     return model
+
+
+
+
+
+
 
 def model_GB(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "GradientBoostingRegressor"

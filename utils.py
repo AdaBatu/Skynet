@@ -54,9 +54,9 @@ def dataset_process(config, split, cum, dyna ,row):
         case 1:
             feature_vec = image_np
         case 2:
-            feature_vec = hog_area(raw_img,True,False)
+            feature_vec_re = hog_area(raw_img,True,False)
         case 3:
-            feature_vec = hog_area(raw_img,True,True)
+            feature_vec_re = hog_area(raw_img,True,True)
         case 4:
             feature_vec = detect_floor_region(image_np)
         case 5:
@@ -77,7 +77,7 @@ def dataset_process(config, split, cum, dyna ,row):
         meta_features = meta_finder(raw_img)
 
         
-    if cum !=5:
+    if cum !=5 and cum != 3 and cum != 2:
         feature_vec_re = cv2.resize(feature_vec,
          (
              IMAGE_SIZE[0] // config["downsample_factor"],
@@ -128,9 +128,9 @@ def process_image(config, cum, dyna, img_file, img_root):
         case 1:
             feature_vec = image_np
         case 2:
-            feature_vec = hog_area(raw_img,True,False)
+            feature_vec_re = hog_area(raw_img,True,False)
         case 3:
-            feature_vec = hog_area(raw_img,True,True)
+            feature_vec_re = hog_area(raw_img,True,True)
         case 4:
             feature_vec = detect_floor_region(image_np)
         case 5:
@@ -150,7 +150,7 @@ def process_image(config, cum, dyna, img_file, img_root):
     if dyna:
         meta_features = meta_finder(raw_img)
 
-    if cum !=5:
+    if cum !=5 and cum != 3 and cum != 2:
         feature_vec_re = cv2.resize(feature_vec,
          (
              IMAGE_SIZE[0] // config["downsample_factor"],

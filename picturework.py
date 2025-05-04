@@ -739,7 +739,14 @@ def hog_area(image, areainf = True, hogo = True):
 
     if hogo:
         gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-        hog_features, _ = hog(gray_image, orientations=9, pixels_per_cell=(8, 8), cells_per_block=(2, 2), transform_sqrt=True, block_norm='L2-Hys', visualize=True)
+        hog_features, _ = hog(
+    gray_image,
+    orientations=9,
+    pixels_per_cell=(15, 15),
+    cells_per_block=(2, 2),
+    block_norm='L2-Hys',
+    visualize=True
+        )
     if areainf & hogo:
      return np.concatenate([[max_area, mean_area], hog_features])
     elif hogo:

@@ -11,6 +11,7 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
+import time
 import mplcursors
 from models import try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
 
@@ -22,7 +23,7 @@ if __name__ == "__main__":
     gs = False
     dyna = False
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 5   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 3   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
 
     if dyna:
         print("Using traditional approach with pre-processed arrays")
@@ -47,6 +48,22 @@ if __name__ == "__main__":
         showme(errors)
         y_pred_ch, errors = model.predict(X_test_ch, np.zeros(len(X_test_ch)), Actual_meta)
 
+        """
+        y_dif= np.abs(y1_test - y1_pred)
+        model2 = PoissonRegressor()
+        imputer = SimpleImputer(strategy='mean')
+
+        # Fit the imputer and transform the data
+        X1_meta_test_imputed = imputer.fit_transform(X1_meta_test)
+        model2.fit(X1_meta_test_imputed,y_dif)
+        X2_meta_test_imputed = imputer.fit_transform(X2_meta_test)
+        err_pred = model2.predict(X2_meta_test_imputed)
+        y2_dif= np.abs(y2_test - model.predict(X2_test))
+        showme(np.column_stack((y_dif, y2_dif)))
+        showme(np.column_stack((y2_dif, err_pred)))
+        print_results(y2_dif, err_pred)
+        """
+        
         save_results(y_pred_ch)
         print_results(y2_test, y_pred)
         y_dif= np.abs(y2_test - y_pred)*100
@@ -67,36 +84,29 @@ if __name__ == "__main__":
             y_train=y_train
         )
         """
-        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
-        model = try_reg()
-        #model = model_RF(gs, False, X_train, y_train)
+        
+        #model = try_reg()
         #model = model_12()
+        
+
+
+        #model = model_RF(gs, False, X_train, y_train)
+        model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
         #model = HIST_BOOST(gs, False, X_train, y_train)
         
         model.fit(X_train, y_train)
-        
         # Prediction
         y_pred = model.predict(X_test)
         print_results(y_pred, y_test)
         y_pred_ch = model.predict(X_test_ch)
         save_results(y_pred_ch)
-        y_dif= np.abs(y1_test - y_pred)
-        model2 = PoissonRegressor()
-        imputer = SimpleImputer(strategy='mean')
-
-        # Fit the imputer and transform the data
-        X1_meta_test_imputed = imputer.fit_transform(X1_meta_test)
-        model2.fit(X1_meta_test_imputed,y_dif)
-        X2_meta_test_imputed = imputer.fit_transform(X2_meta_test)
-        err_pred = model2.predict(X2_meta_test_imputed)
-        y2_dif= np.abs(y2_test - model.predict(X2_test))
-        showme(np.column_stack((y_dif, y2_dif)))
-        showme(np.column_stack((y2_dif, err_pred)))
-        print_results(y2_dif, err_pred)
+        y_dif= np.abs(y_test - y_pred)*100
+        
     # Accuracy and saving
-
+    #plt.hist(y_train,density=False, color='skyblue', bins=20, edgecolor='black')
+    #plt.show()
     plt.hist(y_dif,density=False, color='skyblue', bins=20, edgecolor='black')
     mplcursors.cursor(hover=True)
     plt.show()
