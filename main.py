@@ -37,8 +37,8 @@ if __name__ == "__main__":
         print(f"[INFO]: Dataset loaded with {len(images)} samples.")
 
         # Train test split
-        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances, train_size=0.8, random_state=42)
-        X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.5, random_state=42)
+        X_train, X_test, X_meta_train, X_meta_test, y_train, y_test = train_test_split(images, Train_meta, distances, train_size=0.5, random_state=42)
+        X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.8, random_state=42)
 
         model = model_DYNAMIC_SELECTOR(gridsearch1=gs, 
                                        personalized_pre_processing1=personalized_pre_processing, 
@@ -93,7 +93,7 @@ if __name__ == "__main__":
                 X_test_ch = np.array(X_test_ch)
 
         X_train, X_test, y_train, y_test = train_test_split(images, distances, train_size=0.8, random_state=42)
-        #X1_test, X2_test, X1_meta_test, X2_meta_test, y1_test, y2_test = train_test_split(X_test, X_meta_test, y_test, train_size=0.5, random_state=42)
+        X1_test, X2_test, y1_test, y2_test = train_test_split(X_test, y_test, train_size=0.5, random_state=42)
 
         # Model - pipeline approach
         """model = model_KNN(
@@ -108,7 +108,7 @@ if __name__ == "__main__":
         #model = try_reg()
         #model = model_12()
         #model = stacking_reg(False, True, X_train,y_train)
-        model = AverageRegressor(False, True, X_train,y_train)
+        model = AverageRegressor(False, True, X_train,y_train,X1_test, y1_test)
 
         #model = model_RF(gs, False, X_train, y_train)
         #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
@@ -118,10 +118,11 @@ if __name__ == "__main__":
         
         #model.fit(X_train, y_train)
         # Prediction
-        y_pred = model.predict(X_test)
-        model.compare(y_test)
-        mae = print_results(y_pred, y_test)
+        y_pred = model.predict(X2_test)
+        model.compare(y2_test)
+        mae = print_results(y_pred, y2_test)
         #model.fit(images,distances)
+        model.train_two(X_train, y_train)
         y_pred_ch = model.predict(X_test_ch)
         save_results(y_pred_ch,mae,f"{model.__class__.__name__}")
         y_dif= np.abs(y_test - y_pred)*100

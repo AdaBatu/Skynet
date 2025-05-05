@@ -18,7 +18,7 @@ from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTra
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.decomposition import PCA
-from utils import ImagePreprocessor, load_config, work_is_work
+from utils import ImagePreprocessor, load_config, metam, print_results, work_is_work
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import mplcursors
@@ -56,33 +56,54 @@ def resize_data(X):
 
 
 class AverageRegressor:
-    def __init__(self, gridsearch=False, personalized_pre_processing=False,X_train=None, y_train=None):
+    def __init__(self, gridsearch=False, personalized_pre_processing=False,X_train=None, y_train=None,x1=None, y1=None):
         self.gridsearch = gridsearch
         self.personalized_pre_processing = personalized_pre_processing
         self.results = None
         a, b, c = work_is_work(X_train)
-
+        infk = metam(x1)
         self.base_models = [
             ('knn', model_KNN(False, True, a, y_train)),
             ('kr', model_KRR(False, True, b, y_train)),
             ('his', HIST_BOOST(False, False, c, y_train)),
         ]
+        self.meta = RandomForestRegressor(n_jobs=-1)
+        c,d,e = work_is_work(x1)
+        
+        ll = {'knn': c, 'kr': d, 'his': e}
+        results = np.array([model.predict(ll[i]) for i, model in self.base_models]).T
+
+        self.meta.fit(np.concatenate([infk,results], axis=1), y1)
         
 
     def predict(self, X_test):
         # Make predictions with each base model
+        infk = metam(X_test)
         a, b, c = work_is_work(X_test)
         ll = {'knn': a, 'kr': b, 'his': c}
-        results = [model.predict(ll[i]) for i, model in self.base_models]
-        result = np.divide(np.sum(results, axis=0),3)   # Sum predictions from all models
-        self.results = np.array(results)  # Store results for later use
+        results = np.array([model.predict(ll[i]) for i, model in self.base_models])
+        #result = np.divide(np.sum(results, axis=0),3)   # Sum predictions from all models
+        self.results = results  # Store results for later use
+        result = self.meta.predict(np.concatenate([infk,results.T], axis=1))  # Concatenate meta features with base model predictions
         # Stack predictions and average them
         
         return result
     
     def compare(self, y_test):
         print(self.results.shape)
+        print_results(self.results[0], y_test)
+        print_results(self.results[1], y_test)
+        print_results(self.results[2], y_test)
         showme(self.results - y_test)
+
+    def train_two(self, X_train=None, y_train=None):
+        a, b, c = work_is_work(X_train)
+        self.base_models = [
+            ('knn', model_KNN(False, True, a, y_train)),
+            ('kr', model_KRR(False, True, b, y_train)),
+            ('his', HIST_BOOST(False, False, c, y_train)),
+        ]
+
 
 class DynamicWeightRegressor:
     def __init__(self, base_models):

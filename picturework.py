@@ -763,7 +763,8 @@ def hog_area_old(image, areainf = True, hogo = True):
 
 
 def hog_area(image, areainf=True, hogo=True, max_areas=6):
-    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    gray = image.copy()
+    gray = cv2.cvtColor(gray, cv2.COLOR_RGB2GRAY)
     h, w = gray.shape
     features = [np.mean(gray), np.std(gray)]
 

@@ -44,21 +44,31 @@ def prepare_image_views(flattened_image):
     image = flattened_image.reshape((300, 300, 3)).astype(np.uint8)
     
     # View 1: KNN – low-res grayscale
-
-    image_gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-    #knn_view = hog_area(image, True, False, 10).reshape(-1)
-    knn_view = cv2.resize(image_gray, (10, 10), interpolation=cv2.INTER_AREA).reshape(-1)
+    image_gray = image.copy()
+    image_gray = cv2.cvtColor(image_gray, cv2.COLOR_RGB2GRAY)
+    knn_view = cv2.resize(image_gray, (20, 20), interpolation=cv2.INTER_AREA).reshape(-1) #10,10
     
 
     # View 2: KRR – downsampled RGB
-    krr_view = (hog_area(image,True,True,6)).reshape(-1)
+    image_knn = image.copy()
+    krr_view = (hog_area(image_knn,True,True,10)).reshape(-1)
 
     # View 3: HGB – full image + engineered features
     #lol = doandmask(image)
     #area_feats = hog_area(image, True, False, 10).reshape(-1)
-    area_feats = cv2.resize(image, (15, 15), interpolation=cv2.INTER_AREA).reshape(-1)
+    image_hgb = image.copy()
+    area_feats = cv2.resize(image_hgb, (20, 20), interpolation=cv2.INTER_AREA).reshape(-1)
 
-    return (knn_view, krr_view, area_feats)
+    return (krr_view, krr_view, knn_view)
+
+def metam(imgs):
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda img: hog_area(img.reshape((300, 300, 3)).astype(np.uint8),True,False,6))(img)
+    for img in tqdm(imgs, desc="Tertiary Process", total=len(imgs))
+    )
+    meta = np.vstack(results)
+
+    return meta
 
 
 def work_is_work(imgs):
