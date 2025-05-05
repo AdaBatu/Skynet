@@ -288,7 +288,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', RobustScaler(quantile_range=(25,75))),
-            ('dim_reduction', PCA(n_components=60)),
+            ('dim_reduction', PCA(n_components=120)), #100
             ('regressor',  KernelRidge())
             ])
             param_space = {
@@ -328,7 +328,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', RobustScaler(quantile_range=(25,75))),
-            ('dim_reduction', PCA(n_components=0.95)),
+            ('dim_reduction', PCA(n_components=120)), #120
             ('regressor',  KernelRidge())
             ])
         else:
@@ -357,7 +357,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
         print("Using full pipeline with built-in loading")
         knn_pipeline = Pipeline([
             ('scaler', RobustScaler(quantile_range=(17,74))),
-            ('dim_reduction', PCA(n_components=90)),
+            ('dim_reduction', PCA(n_components=83)), #83
             ('regressor', KNeighborsRegressor())
         ])
         
@@ -580,13 +580,16 @@ def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None
 
 def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     base_models = [
-    ('knn', Pipeline([('scaler', RobustScaler(quantile_range=(25,75))),('dim_reduction', PCA(n_components=45)),('regressor', KNeighborsRegressor(algorithm = "kd_tree", n_neighbors=3, weights = "distance", p = 2, leaf_size = 97, metric = "manhattan"))])),
-    ('kr', model_KNN(False,True)),
+    ('knn', model_KNN(False,True)),
+    ('kr', model_KRR(False,True)),
+    ('his', HIST_BOOST(False,False)),
+    ('gaus', GaussianProcessRegressor()),
     ]
     safe_set_random_state(base_models[0][1],42)
     safe_set_random_state(base_models[1][1],42)
     # Final estimator
-    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
+    final_model = HistGradientBoostingRegressor(max_iter=300, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
+    #final_model = RidgeCV([0.1, 1,0.01])
     safe_set_random_state(final_model,42)
     # Stacking regressor
     model = StackingRegressor(

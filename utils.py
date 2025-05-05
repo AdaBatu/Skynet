@@ -39,8 +39,10 @@ def load_config():
     return config
 
 
-def dataset_process(config, split, cum, dyna ,row):
+def dataset_process(config, split, cum, dyna ,row,crop):
     image = Image.open(config["data_dir"] / f"{split}_images" / f"{row['ID']}.png")
+    if crop:
+        image = image.crop((40, 40, 260, 260))
     raw_img = image.copy()
     if not config["load_rgb"]:
         image = image.convert("L")
@@ -87,7 +89,7 @@ def dataset_process(config, split, cum, dyna ,row):
     
     return (meta_features, feature_vec_re) if dyna else (None, feature_vec_re)
 
-def load_custom_dataset(config, split="train", cum = 1, dyna=False):
+def load_custom_dataset(config, split="train", cum = 1, dyna=False, crop=False):
     X_meta_list = []
     labels = pd.read_csv(
         config["data_dir"] / f"{split}_labels.csv", dtype={"ID": str}
@@ -102,7 +104,7 @@ def load_custom_dataset(config, split="train", cum = 1, dyna=False):
     all_features = []
     #for _, row in labels.iterrows():
     results = Parallel(n_jobs=-1)(
-    delayed(lambda row: dataset_process(config, split, cum, dyna ,row))(row)
+    delayed(lambda row: dataset_process(config, split, cum, dyna ,row,crop))(row)
     for _, row in tqdm(labels.iterrows(), desc="Processing Rows", total=len(labels))
     )
 
@@ -114,8 +116,10 @@ def load_custom_dataset(config, split="train", cum = 1, dyna=False):
 
 
 
-def process_image(config, cum, dyna, img_file, img_root):
+def process_image(config, cum, dyna, img_file, img_root,crop):
     image = Image.open(os.path.join(img_root, img_file))
+    if crop:
+        image = image.crop((40, 0, 260, 300))
     raw_img = image
     if not config["load_rgb"]:
         image = image.convert("L")
@@ -161,7 +165,7 @@ def process_image(config, cum, dyna, img_file, img_root):
     return (meta_features, feature_vec_re) if dyna else (None, feature_vec_re)
 
 
-def load_test_custom_dataset(config, cum, dyna=False):
+def load_test_custom_dataset(config, cum, dyna=False, crop=False):
     X_meta_list = []
     feature_dim = (IMAGE_SIZE[0] // config["downsample_factor"]) * (
         IMAGE_SIZE[1] // config["downsample_factor"]
@@ -173,7 +177,7 @@ def load_test_custom_dataset(config, cum, dyna=False):
     img_files = (os.listdir(img_root))
 
     results = Parallel(n_jobs=-1)(
-    delayed(process_image)(config, cum, dyna, img_file, img_root)
+    delayed(process_image)(config, cum, dyna, img_file, img_root,crop)
     for img_file in tqdm(img_files, desc="Processing Rows", total=len(img_files))
 )
     X_meta_list, all_features = zip(*results) if dyna else ([], [r for _, r in results])

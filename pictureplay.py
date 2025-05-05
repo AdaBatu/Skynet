@@ -4,6 +4,7 @@ from picturework import adjust_brightness_to_mean,mask_pixels_with_neighbors_gpu
 import os
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
+from PIL import Image
 
 # Specify the folder containing images
 folder_path = 'data/test_images'  # Replace with your folder path
@@ -15,14 +16,17 @@ image_files = [f for f in os.listdir(folder_path) if f.lower().endswith(('.png',
 for image_file in image_files:
     image_path = os.path.join(folder_path, image_file)
     image_bgr = cv2.imread(str(image_path))
+    image_bgr = image_bgr[0:300, 40:260]
     lol = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     #lol = adjust_brightness_to_mean(lol)
     #lol = apply_blue_tone_and_extract_feature(lol)
-    lol = doandmask(lol)
+    lol = hog_area(lol)
+    #lol = doandmask(lol)
+    
     #lol = detect_floor_region(lol)
     
     #lol = np.where(lol > 120, 255, 0).astype(np.uint8)
-    lol = cv2.resize(lol, (30, 30), interpolation=cv2.INTER_AREA)
+    #lol = cv2.resize(lol, (30, 30), interpolation=cv2.INTER_AREA)
     
     
     

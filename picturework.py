@@ -727,15 +727,22 @@ def doandmask(image):
     result[mask_indices, 2] = 255  # Blue channel
     return result
 
-def hog_area(image, areainf = True, hogo = True):
+def hog_area_old(image, areainf = True, hogo = True):
+    #image = adjust_brightness_to_mean(image)
     gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
-
+    max_areas = 2
     if areainf:
         edges = cv2.Canny(gray, 50, 150)
         contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         areas = [cv2.contourArea(c) for c in contours]
         max_area = max(areas) if areas else 0
         mean_area = np.mean(areas) if areas else 0
+
+        if len(areas) < max_areas:
+            areas += [0] * (max_areas - len(areas))
+        else:
+            areas = areas[:max_areas]
+
 
     if hogo:
         gray_image = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
@@ -748,11 +755,59 @@ def hog_area(image, areainf = True, hogo = True):
     visualize=True
         )
     if areainf & hogo:
-     return np.concatenate([[max_area, mean_area], hog_features])
+     return np.concatenate([[np.mean(gray),np.std(gray)],areas, hog_features])
     elif hogo:
         return hog_features
     else:
         return [max_area, mean_area]
+
+
+def hog_area(image, areainf=True, hogo=True, max_areas=6):
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    h, w = gray.shape
+    features = [np.mean(gray), np.std(gray)]
+
+    contour_features = []
+
+    if areainf:
+        edges = cv2.Canny(gray, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Sort contours by area (descending), then keep top N
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:max_areas]
+
+        for c in contours:
+            area = cv2.contourArea(c)
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cx = M["m10"] / M["m00"] / w  # normalize x
+                cy = M["m01"] / M["m00"] / h  # normalize y
+            else:
+                cx, cy = 0, 0
+
+            x, y, bw, bh = cv2.boundingRect(c)
+            aspect_ratio = bw / bh if bh != 0 else 0
+
+            contour_features.extend([area, cx, cy, aspect_ratio])
+
+        # Pad to fixed length
+        while len(contour_features) < 4 * max_areas:
+            contour_features.extend([0, 0, 0, 0])
+    else:
+        contour_features = [0] * (4 * max_areas)
+
+    hog_features = []
+    if hogo:
+        hog_features, _ = hog(
+            gray,
+            orientations=9,
+            pixels_per_cell=(15, 15),
+            cells_per_block=(2, 2),
+            block_norm='L2-Hys',
+            visualize=True
+        )
+    return np.concatenate([features, contour_features, hog_features])
+
 
 
 def meta_finder(image):

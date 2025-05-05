@@ -1,7 +1,7 @@
 {
-    "regressor__alpha": 0.02056709077250673,
-    "regressor__coef0": 1.0,
-    "regressor__degree": 3,
+    "regressor__alpha": 0.0039362206382165055,
+    "regressor__coef0": 0.47492781687850094,
+    "regressor__degree": 4,
     "regressor__gamma": 0.0001,
-    "regressor__kernel": "rbf"
+    "regressor__kernel": "poly"
 }

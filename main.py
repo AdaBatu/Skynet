@@ -24,14 +24,15 @@ if __name__ == "__main__":
     config = load_config()
     gs = False
     dyna = False
+    crop = False  #1 if no crop 2 if crop
     personalized_pre_processing = True  # Set to False to use traditional approach
     preprocess_var = 3   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
-
+    
     if dyna:
         print("Using traditional approach with pre-processed arrays")
         # Load dataset: images and corresponding minimum distance values
-        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
-        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
+        Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna, crop=crop)  
+        Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna, crop=crop)
 
         print(f"[INFO]: Dataset loaded with {len(images)} samples.")
 
@@ -75,19 +76,19 @@ if __name__ == "__main__":
         
         
 
-        if not os.path.exists(f"{preprocess_var}train.pkl"):
-            Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna)  
-            Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna)
-            with open(f"{preprocess_var}train.pkl", "wb") as f:
+        if not os.path.exists(f"{preprocess_var}{crop}train.pkl"):
+            Train_meta, images, distances = load_custom_dataset(config, "train", preprocess_var, dyna=dyna, crop=crop)  
+            Actual_meta, X_test_ch = load_test_custom_dataset(config, preprocess_var, dyna=dyna, crop=crop)
+            with open(f"{preprocess_var}{crop}train.pkl", "wb") as f:
                 pickle.dump([images,distances], f)
-            with open(f"{preprocess_var}test.pkl", "wb") as f:
+            with open(f"{preprocess_var}{crop}test.pkl", "wb") as f:
                 pickle.dump(X_test_ch, f)
         else:
             print("files found! no preprocessing!")
-            with open(f"{preprocess_var}train.pkl", "rb") as f:
+            with open(f"{preprocess_var}{crop}train.pkl", "rb") as f:
                 aa = pickle.load(f)
                 images, distances = np.array(aa[0]), np.array(aa[1])
-            with open(f"{preprocess_var}test.pkl", "rb") as f:
+            with open(f"{preprocess_var}{crop}test.pkl", "rb") as f:
                 X_test_ch = pickle.load(f)   
                 X_test_ch = np.array(X_test_ch)
 
@@ -110,10 +111,10 @@ if __name__ == "__main__":
 
 
         #model = model_RF(gs, False, X_train, y_train)
-        model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
+        #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
-        #model = HIST_BOOST(gs, False, X_train, y_train)
+        model = HIST_BOOST(gs, False, X_train, y_train)
         
         model.fit(X_train, y_train)
         # Prediction
@@ -127,7 +128,7 @@ if __name__ == "__main__":
     # Accuracy and saving
     #plt.hist(y_train,density=False, color='skyblue', bins=20, edgecolor='black')
     #plt.show()
-    plt.hist(y_dif,density=False, color='skyblue', bins=20, edgecolor='black')
+    plt.hist(y_dif,density=False, color='skyblue', bins=40, edgecolor='black')
     mplcursors.cursor(hover=True)
     plt.show()
     # Final training on all data
