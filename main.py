@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import time
 import pickle
 import mplcursors
-from models import try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
+from models import AverageRegressor, try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
 
 
 
@@ -26,7 +26,7 @@ if __name__ == "__main__":
     dyna = False
     crop = False  #1 if no crop 2 if crop
     personalized_pre_processing = True  # Set to False to use traditional approach
-    preprocess_var = 3   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
+    preprocess_var = 1   #0 for     black/white // 1 for only rgb // 2 for only edges // 3 for hog+edges // 4 for contour // 5 for LAB //6 for extreme things   
     
     if dyna:
         print("Using traditional approach with pre-processed arrays")
@@ -107,18 +107,19 @@ if __name__ == "__main__":
         
         #model = try_reg()
         #model = model_12()
-        #model = stacking_reg()
-
+        #model = stacking_reg(False, True, X_train,y_train)
+        model = AverageRegressor(False, True, X_train,y_train)
 
         #model = model_RF(gs, False, X_train, y_train)
         #model = model_KNN(gs, personalized_pre_processing, X_train, y_train)
         #model = model_ADA(gs, True, X_train, y_train)
         #model = model_KRR(gs, personalized_pre_processing, X_train, y_train)
-        model = HIST_BOOST(gs, False, X_train, y_train)
+        #model = HIST_BOOST(gs, False, X_train, y_train)
         
-        model.fit(X_train, y_train)
+        #model.fit(X_train, y_train)
         # Prediction
         y_pred = model.predict(X_test)
+        model.compare(y_test)
         mae = print_results(y_pred, y_test)
         #model.fit(images,distances)
         y_pred_ch = model.predict(X_test_ch)

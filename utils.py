@@ -1,5 +1,5 @@
 """Utility functions for project 1."""
-from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region, meta_finder, adjust_brightness_to_mean,doandmask
+from picturework import apply_blue_tone_and_extract_feature, hog_area, detect_floor_region, hog_area_old, meta_finder, adjust_brightness_to_mean,doandmask
 import yaml
 import os
 import numpy as np
@@ -37,6 +37,40 @@ def load_config():
 
     print(f"[INFO]: Configs are loaded with: \n {config}")
     return config
+
+
+def prepare_image_views(flattened_image):
+    # Reshape to 300x300x3
+    image = flattened_image.reshape((300, 300, 3)).astype(np.uint8)
+    
+    # View 1: KNN – low-res grayscale
+
+    image_gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    #knn_view = hog_area(image, True, False, 10).reshape(-1)
+    knn_view = cv2.resize(image_gray, (10, 10), interpolation=cv2.INTER_AREA).reshape(-1)
+    
+
+    # View 2: KRR – downsampled RGB
+    krr_view = (hog_area(image,True,True,6)).reshape(-1)
+
+    # View 3: HGB – full image + engineered features
+    #lol = doandmask(image)
+    #area_feats = hog_area(image, True, False, 10).reshape(-1)
+    area_feats = cv2.resize(image, (15, 15), interpolation=cv2.INTER_AREA).reshape(-1)
+
+    return (knn_view, krr_view, area_feats)
+
+
+def work_is_work(imgs):
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda img: prepare_image_views(img))(img)
+    for img in tqdm(imgs, desc="Secondary Process", total=len(imgs))
+    )
+    knn_views, krr_views, area_feats = zip(*results)
+    area_feats = np.vstack(area_feats)
+    knn_views = np.vstack(knn_views)
+    krr_views = np.vstack(krr_views)
+    return knn_views, krr_views, area_feats
 
 
 def dataset_process(config, split, cum, dyna ,row,crop):

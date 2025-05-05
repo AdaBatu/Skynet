@@ -18,7 +18,7 @@ from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTra
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.decomposition import PCA
-from utils import ImagePreprocessor, load_config
+from utils import ImagePreprocessor, load_config, work_is_work
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import mplcursors
@@ -42,8 +42,8 @@ def showme(errors):
         4: 'orange',
         5: 'green'
     }
-    for i in range(errors.shape[1]):
-        plt.hist(errors[:,i] , alpha=0.4, density=False, color=coldict[i], bins=20, edgecolor='black')
+    for i in range(errors.shape[0]):
+        plt.hist(errors[i,:] , alpha=0.4, density=False, color=coldict[i], bins=20, edgecolor='black')
     mplcursors.cursor(hover=True)
     plt.show()
 
@@ -54,6 +54,35 @@ def resize_data(X):
     resized_X = np.array([cv2.resize(x, (new_height, new_width),interpolation=cv2.INTER_AREA) for x in X_reshaped])  # Resizing images
     return resized_X.reshape(len(X), -1)  # Flatten images to 2D for model input
 
+
+class AverageRegressor:
+    def __init__(self, gridsearch=False, personalized_pre_processing=False,X_train=None, y_train=None):
+        self.gridsearch = gridsearch
+        self.personalized_pre_processing = personalized_pre_processing
+        self.results = None
+        a, b, c = work_is_work(X_train)
+
+        self.base_models = [
+            ('knn', model_KNN(False, True, a, y_train)),
+            ('kr', model_KRR(False, True, b, y_train)),
+            ('his', HIST_BOOST(False, False, c, y_train)),
+        ]
+        
+
+    def predict(self, X_test):
+        # Make predictions with each base model
+        a, b, c = work_is_work(X_test)
+        ll = {'knn': a, 'kr': b, 'his': c}
+        results = [model.predict(ll[i]) for i, model in self.base_models]
+        result = np.divide(np.sum(results, axis=0),3)   # Sum predictions from all models
+        self.results = np.array(results)  # Store results for later use
+        # Stack predictions and average them
+        
+        return result
+    
+    def compare(self, y_test):
+        print(self.results.shape)
+        showme(self.results - y_test)
 
 class DynamicWeightRegressor:
     def __init__(self, base_models):
@@ -219,7 +248,7 @@ def model_ADA(gridsearch=False, personalized_pre_processing = False ,X_train=Non
             model = Pipeline([
             #('resize', FunctionTransformer(resize_data, validate=False)),  
             ('scaler', RobustScaler(quantile_range=(25,75))),
-            ('dim_reduction', PCA(n_components=45)),
+            ('dim_reduction', PCA(n_components=20)),
             ('regressor',  AdaBoostRegressor(estimator=RandomForestRegressor( n_jobs=-1),random_state=42))
             ])
             param_space = {
@@ -339,6 +368,7 @@ def model_KRR(gridsearch=False, personalized_pre_processing = False ,X_train=Non
 
             model.set_params(**best_params)
             safe_set_random_state(model,42)
+            model.fit(X_train,y_train)
             return model
         else:
             model =  KernelRidge()
@@ -392,6 +422,7 @@ def model_KNN(gridsearch=False, personalized_pre_processing=False,  X_train=None
             safe_set_random_state(knn_pipeline,42)
             if best_params:
                 knn_pipeline.set_params(**best_params)
+                knn_pipeline.fit(X_train,y_train)
                 return knn_pipeline
             else:
                 return knn_pipeline
@@ -513,6 +544,7 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
             if best_params:
                 model =  HistGradientBoostingRegressor(**best_params)
                 safe_set_random_state(model,42)
+                model.fit(X_train,y_train)
                 return model
             else:
                 model =  HistGradientBoostingRegressor()
@@ -578,13 +610,34 @@ def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None
     )
     return model
 
-def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+def average_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    
+    a,b,c = work_is_work(X_train)
+    
     base_models = [
-    ('knn', model_KNN(False,True)),
-    ('kr', model_KRR(False,True)),
-    ('his', HIST_BOOST(False,False)),
-    ('gaus', GaussianProcessRegressor()),
+    ('knn', model_KNN(False,True,a,y_train)),
+    ('kr', model_KRR(False,True,b,y_train)),
+    ('his', HIST_BOOST(False,False,c,y_train)),
     ]
+
+    safe_set_random_state(base_models[0][1],42)
+    safe_set_random_state(base_models[1][1],42)
+    result = [base_models[i][1].predict(X_train) for i in range(len(base_models))]
+    
+    return 
+
+
+
+def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
+    
+    a,b,c = work_is_work(X_train)
+    
+    base_models = [
+    ('knn', model_KNN(False,True,a,y_train)),
+    ('kr', model_KRR(False,True,b,y_train)),
+    ('his', HIST_BOOST(False,False,c,y_train)),
+    ]
+
     safe_set_random_state(base_models[0][1],42)
     safe_set_random_state(base_models[1][1],42)
     # Final estimator
@@ -599,6 +652,7 @@ def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=
         passthrough=True,
         n_jobs=-1
     )
+
 
     return model
 

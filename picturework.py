@@ -809,7 +809,6 @@ def hog_area(image, areainf=True, hogo=True, max_areas=6):
     return np.concatenate([features, contour_features, hog_features])
 
 
-
 def meta_finder(image):
     if image.ndim != 3 or image.shape[2] != 3:
         raise ValueError(f"Expected RGB image with shape (H, W, 3), got {image.shape}")
