@@ -9,21 +9,115 @@ from sklearn.linear_model import LinearRegression
 from sklearn.linear_model import Ridge, RidgeCV
 from sklearn.neighbors import KNeighborsRegressor
 from sklearn.tree import DecisionTreeRegressor
+from tqdm import tqdm
 from grid_search import grid_search_model_PB, bayesian_search_model_with_progress
-from picturework import meta_finder
 from skopt.space import Real, Integer, Categorical
 import json
+import cv2
+from joblib import Parallel, delayed
 import os 
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTransformer, MinMaxScaler
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.decomposition import PCA
-from utils import ImagePreprocessor, load_config, metam, print_results, work_is_work
+from utils import print_results
+from skimage.feature import hog
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
 import mplcursors
 from scalers import ClusterBasedScaler
+
+def hog_area(image, areainf=True, hogo=True, max_areas=6):
+    gray = image.copy()
+    gray = cv2.cvtColor(gray, cv2.COLOR_RGB2GRAY)
+    h, w = gray.shape
+    features = [np.mean(gray), np.std(gray)]
+
+    contour_features = []
+
+    if areainf:
+        edges = cv2.Canny(gray, 50, 150)
+        contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        # Sort contours by area (descending), then keep top N
+        contours = sorted(contours, key=cv2.contourArea, reverse=True)[:max_areas]
+
+        for c in contours:
+            area = cv2.contourArea(c)
+            M = cv2.moments(c)
+            if M["m00"] != 0:
+                cx = M["m10"] / M["m00"] / w  # normalize x
+                cy = M["m01"] / M["m00"] / h  # normalize y
+            else:
+                cx, cy = 0, 0
+
+            x, y, bw, bh = cv2.boundingRect(c)
+            aspect_ratio = bw / bh if bh != 0 else 0
+
+            contour_features.extend([area, cx, cy, aspect_ratio])
+
+        # Pad to fixed length
+        while len(contour_features) < 4 * max_areas:
+            contour_features.extend([0, 0, 0, 0])
+    else:
+        contour_features = [0] * (4 * max_areas)
+
+    hog_features = []
+    if hogo:
+        hog_features, _ = hog(
+            gray,
+            orientations=9,
+            pixels_per_cell=(15, 15),
+            cells_per_block=(2, 2),
+            block_norm='L2-Hys',
+            visualize=True
+        )
+    return np.concatenate([features, contour_features, hog_features])
+
+def prepare_image_views(flattened_image):
+    # Reshape to 300x300x3
+    image = flattened_image.reshape((300, 300, 3)).astype(np.uint8)
+    
+    # View 1: KNN – low-res grayscale
+    image_gray = image.copy()
+    image_gray = cv2.cvtColor(image_gray, cv2.COLOR_RGB2GRAY)
+    knn_view = cv2.resize(image_gray, (20, 20), interpolation=cv2.INTER_AREA).reshape(-1) #10,10
+    
+
+    # View 2: KRR – downsampled RGB
+    image_knn = image.copy()
+    krr_view = (hog_area(image_knn,True,True,10)).reshape(-1)
+
+    # View 3: HGB – full image + engineered features
+    #lol = doandmask(image)
+    #area_feats = hog_area(image, True, False, 10).reshape(-1)
+    image_hgb = image.copy()
+    area_feats = cv2.resize(image_hgb, (20, 20), interpolation=cv2.INTER_AREA).reshape(-1)
+
+    return (krr_view, krr_view, knn_view)
+
+def metam(imgs):
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda img: hog_area(img.reshape((300, 300, 3)).astype(np.uint8),True,False,6))(img)
+    for img in tqdm(imgs, desc="Tertiary Process", total=len(imgs))
+    )
+    meta = np.vstack(results)
+
+    return meta
+
+
+def work_is_work(imgs):
+    results = Parallel(n_jobs=-1)(
+    delayed(lambda img: prepare_image_views(img))(img)
+    for img in tqdm(imgs, desc="Secondary Process", total=len(imgs))
+    )
+    knn_views, krr_views, area_feats = zip(*results)
+    area_feats = np.vstack(area_feats)
+    knn_views = np.vstack(knn_views)
+    krr_views = np.vstack(krr_views)
+    return knn_views, krr_views, area_feats
+
 
 def safe_set_random_state(model, seed=42):
     # Try to set random_state if it's a valid param
@@ -108,76 +202,6 @@ class AverageRegressor:
     def save(self):
         joblib.dump(self, "2_models_pipeline.pkl")
 
-class DynamicWeightRegressor:
-    def __init__(self, base_models):
-        self.base_models = base_models  # Dict of model_name -> model instance
-        self.meta_model = RandomForestRegressor()
-        safe_set_random_state(self.meta_model, 42)
-
-    def fit(self, X_image,y, X_meta, X_test, y_test):
-        # Train each base model
-        error_targets  = []
-        abs_error_targets = []
-        for name, model in self.base_models.items():
-            print(name)
-            safe_set_random_state(model)
-            model.fit(X_image, y)
-            preds = model.predict(X_test)
-            abs_error_targets.append(np.abs(preds-y_test).reshape(-1, 1))
-            error_targets.append((preds-y_test).reshape(-1, 1))
-
-        errors  = np.hstack(error_targets)
-        abs_errors  = np.hstack(abs_error_targets)
-        # Train meta-model to learn weights
-        #self.meta_model.fit(X_meta, abs_errors)
-        self.meta_model.fit(X_meta.reshape(X_meta.shape[0], -1), abs_errors)
-        showme(errors)
-
-    def predict(self, X_image, y_lab, X_meta):
-        base_preds = []
-        base_mae = []
-        for name, model in self.base_models.items():
-            safe_set_random_state(model)
-            predd = model.predict(X_image)
-            mae = np.mean(np.abs(predd - y_lab))
-            base_mae.append(mae)
-            print(f"{name} MAE: {mae:.2f}")
-            base_preds.append(predd.reshape(-1, 1))
-
-        base_preds = np.hstack(base_preds)
-        real_errors = base_preds - y_lab.reshape(-1, 1)
-        predicted_errors = self.meta_model.predict(X_meta)
-        showme(real_errors - predicted_errors)
-        #y_pred = np.sum(np.divide(base_preds - predicted_errors,2), axis=1)
-
-        tot = np.sum(predicted_errors, axis=1, keepdims=True)
-        weights = ((tot - predicted_errors) / tot)
-        #weights = np.exp(-4 * predicted_errors)
-        weights = weights / np.sum(weights, axis=1, keepdims=True)
-
-        #weights = 1 / (predicted_errors + 1e-8)
-        #weights = weights / np.sum(weights, axis=1, keepdims=True)
-
-        # Apply weights row-wise
-        y_pred = np.sum(base_preds * weights, axis=1)
-        return y_pred,predicted_errors
-
-
-def model_DYNAMIC_SELECTOR(gridsearch1=False, personalized_pre_processing1=False, X_train=None, y_train=None, X_meta = None, X_test = None, y_test = None):
-    # Base models
-    base_models = {
-        "KNN": model_KNN(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        "HB": HIST_BOOST(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
-        #"KRR": model_KRR(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-        "RF": model_RF(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
-        "STack": stacking_reg(gridsearch=gridsearch1, personalized_pre_processing=False, X_train=X_train, y_train=y_train),
-        #"ADA": model_ADA(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train)
-        }
-    #"LLR": model_log_linear(gridsearch=gridsearch1, personalized_pre_processing=personalized_pre_processing1, X_train=X_train, y_train=y_train),
-    
-    model = DynamicWeightRegressor(base_models)
-    model.fit(X_train, y_train, X_meta, X_test, y_test)
-    return model
 
 def load_best_params(model_name, save_dir="saved_params"):
     filepath = os.path.join(save_dir, f"best_params_{model_name}.json")
@@ -575,82 +599,6 @@ def HIST_BOOST(gridsearch=False, personalized_pre_processing=False,  X_train=Non
                 safe_set_random_state(model,42)
                 return model
 
-class InverseLogTransformer:
-    def fit(self, X, y=None):
-        return self
-    
-    def transform(self, X):
-        return np.expm1(X)  # np.expm1 is the inverse of np.log1p
-
-def model_log_linear(gridsearch=False, personalized_pre_processing=True, X_train=None, y_train=None): 
-    model_name = "LogLinearRegression"
-    random_state = 42  # Consistent seed for all models
-    #if y_train is None or len(y_train) == 0:
-    #    raise ValueError("y_train is None or empty. Please provide a valid target variable.")
-    # Log transformation of target variable automatically within the pipeline
-    log_transformer = FunctionTransformer(np.log1p, validate=True)  # np.log1p is log(x + 1)
-    
-    if personalized_pre_processing:
-        # Pipeline approach - handles scaling, PCA for dimensionality reduction, and log transformation
-        print("Using full pipeline with built-in loading")
-        
-        log_linear_pipeline = Pipeline([
-            ('log_transform', log_transformer),  # Apply log transformation to target during training
-            ('scaler', RobustScaler(quantile_range=(25,75))),
-            ('dim_reduction', PCA(n_components=50)),
-            ('regressor', LinearRegression()),
-            ('inverse_log', InverseLogTransformer())  # Apply inverse transformation after predictions
-        ])
-        
-        
-        model = log_linear_pipeline
-        
-        #model.fit(X_train, y_train)  # Automatically log-transform and fit the model
-        return model
-    else:
-        # If no personalized pre-processing, fit a simple log-linear model
-        model = LinearRegression()
-        y_train_log = np.log1p(y_train)  # Apply log transformation manually
-        model.fit(X_train, y_train_log)
-        return model
-
-def model_12(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
-    base_models = [
-    ('knn', KNeighborsRegressor(algorithm = "brute", n_neighbors=3, weights = "distance", p = 1)),
-    ('kr', KernelRidge(alpha=1.0, gamma=0.02 ,degree=3,kernel="linear")),
-]
-    safe_set_random_state(base_models[0][1],42)
-    safe_set_random_state(base_models[1][1],42)
-    # Final estimator
-    final_model = HistGradientBoostingRegressor(max_iter=500, learning_rate= 0.055, loss = "squared_error", early_stopping=True)
-    safe_set_random_state(final_model,42)
-    # Stacking regressor
-    model = StackingRegressor(
-        estimators=base_models,
-        final_estimator=final_model,
-        cv=5,
-        passthrough=True,
-        n_jobs=-1
-    )
-    return model
-
-def average_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
-    
-    a,b,c = work_is_work(X_train)
-    
-    base_models = [
-    ('knn', model_KNN(False,True,a,y_train)),
-    ('kr', model_KRR(False,True,b,y_train)),
-    ('his', HIST_BOOST(False,False,c,y_train)),
-    ]
-
-    safe_set_random_state(base_models[0][1],42)
-    safe_set_random_state(base_models[1][1],42)
-    result = [base_models[i][1].predict(X_train) for i in range(len(base_models))]
-    
-    return 
-
-
 
 def stacking_reg(gridsearch=False, personalized_pre_processing = False ,X_train=None, y_train=None):
     
@@ -720,54 +668,4 @@ def try_reg():
     )
     return model
 
-
-
-def model_GB(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
-    model_name = "GradientBoostingRegressor"
-    random_state = 42
-
-    if gridsearch:
-        model = GradientBoostingRegressor(random_state=random_state)
-        param_grid = {
-            'n_estimators': [50, 100, 200, 300, 500],  # Wider range with smaller increments
-            'learning_rate': [0.001, 0.01, 0.05, 0.1, 0.2],  # More granular learning rates
-            'max_depth': [2, 3, 4, 5, 6, None],  # Includes shallower trees
-            'min_samples_split': [2, 5, 10],  # New - controls node splitting
-            'min_samples_leaf': [1, 2, 4],  # New - controls leaf size
-            'max_features': ['sqrt', 0.8, None],  # Feature subsampling
-            'subsample': [0.6, 0.7, 0.8, 0.9, 1.0],  # More aggressive subsampling
-            'validation_fraction': [0.1, 0.2],  # Early stopping
-            'n_iter_no_change': [5, 10],  # Early stopping patience
-            'random_state': [random_state]
-         }
-        best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
-        return best_model
-    else:
-        best_params = load_best_params(model_name)
-        if best_params:
-            return GradientBoostingRegressor(**best_params, random_state=random_state)
-        else:
-            return GradientBoostingRegressor(random_state=random_state)
-
-
-def model_R(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
-
-
-    model_name = "Ridge"
-    random_state = 42  # Ridge doesn't use random_state, but added for consistency
-
-    if gridsearch:
-        model = Ridge()
-        param_grid = {
-            'alpha': [0.01, 0.1, 1.0, 10.0, 100.0],
-            'solver': ['auto', 'svd', 'cholesky', 'lsqr']
-        }
-        best_model, best_params = grid_search_model(model, param_grid, X_train, y_train)
-        return best_model
-    else:
-        best_params = load_best_params(model_name)
-        if best_params:
-            return Ridge(**best_params)
-        else:
-            return Ridge()
         

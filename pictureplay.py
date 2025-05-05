@@ -19,8 +19,8 @@ for image_file in image_files:
     image_bgr = image_bgr[0:300, 40:260]
     lol = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
     #lol = adjust_brightness_to_mean(lol)
-    #lol = apply_blue_tone_and_extract_feature(lol)
-    lol = hog_area(lol)
+    lol = apply_blue_tone_and_extract_feature(lol)
+    #lol = hog_area(lol)
     #lol = doandmask(lol)
     
     #lol = detect_floor_region(lol)
