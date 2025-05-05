@@ -1,4 +1,5 @@
 import cv2
+import joblib
 from sklearn.ensemble import RandomForestRegressor, StackingRegressor
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.ensemble import HistGradientBoostingRegressor, AdaBoostRegressor
@@ -14,7 +15,7 @@ from skopt.space import Real, Integer, Categorical
 import json
 import os 
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTransformer
+from sklearn.preprocessing import RobustScaler, FunctionTransformer, QuantileTransformer, MinMaxScaler
 import numpy as np
 from sklearn.kernel_ridge import KernelRidge
 from sklearn.decomposition import PCA
@@ -67,14 +68,14 @@ class AverageRegressor:
             ('kr', model_KRR(False, True, b, y_train)),
             #('his', HIST_BOOST(False, False, c, y_train)),
         ]
-        self.meta = RandomForestRegressor(n_jobs=-1)
+        self.meta = LinearRegression(n_jobs=-1)
         c,d,e = work_is_work(x1)
         
         ll = {'knn': c, 'kr': d, 'his': e}
         results = np.array([model.predict(ll[i]) for i, model in self.base_models]).T
 
-        self.meta.fit(np.concatenate([infk,results], axis=1), y1)
-        
+        #self.meta.fit(np.concatenate([infk,results], axis=1), y1)
+        self.meta.fit(results, y1)
 
     def predict(self, X_test):
         # Make predictions with each base model
@@ -82,9 +83,10 @@ class AverageRegressor:
         a, b, c = work_is_work(X_test)
         ll = {'knn': a, 'kr': b, 'his': c}
         results = np.array([model.predict(ll[i]) for i, model in self.base_models])
-        result = np.divide(np.sum(results, axis=0),2)   # Sum predictions from all models
+        #result = np.divide(np.sum(results, axis=0),2)   # Sum predictions from all models
         self.results = results  # Store results for later use
         #result = self.meta.predict(np.concatenate([infk,results.T], axis=1))  # Concatenate meta features with base model predictions
+        result = self.meta.predict(results.T)
         # Stack predictions and average them
         
         return result
@@ -95,6 +97,7 @@ class AverageRegressor:
             print_results(self.results[i], y_test)
         showme(self.results - y_test)
 
+
     def train_two(self, X_train=None, y_train=None):
         a, b, c = work_is_work(X_train)
         self.base_models = [
@@ -102,7 +105,8 @@ class AverageRegressor:
             ('kr', model_KRR(False, True, b, y_train)),
             #('his', HIST_BOOST(False, False, c, y_train)),
         ]
-
+    def save(self):
+        joblib.dump(self, "2_models_pipeline.pkl")
 
 class DynamicWeightRegressor:
     def __init__(self, base_models):

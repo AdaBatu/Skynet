@@ -122,9 +122,10 @@ if __name__ == "__main__":
         model.compare(y2_test)
         mae = print_results(y_pred, y2_test)
         #model.fit(images,distances)
-        model.train_two(X_train, y_train)
+        model.train_two(images, distances)
         y_pred_ch = model.predict(X_test_ch)
         save_results(y_pred_ch,mae,f"{model.__class__.__name__}")
+        model.save()
         y_dif= np.abs(y_test - y_pred)*100
         
     # Accuracy and saving
