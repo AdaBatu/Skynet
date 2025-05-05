@@ -65,7 +65,7 @@ class AverageRegressor:
         self.base_models = [
             ('knn', model_KNN(False, True, a, y_train)),
             ('kr', model_KRR(False, True, b, y_train)),
-            ('his', HIST_BOOST(False, False, c, y_train)),
+            #('his', HIST_BOOST(False, False, c, y_train)),
         ]
         self.meta = RandomForestRegressor(n_jobs=-1)
         c,d,e = work_is_work(x1)
@@ -82,18 +82,17 @@ class AverageRegressor:
         a, b, c = work_is_work(X_test)
         ll = {'knn': a, 'kr': b, 'his': c}
         results = np.array([model.predict(ll[i]) for i, model in self.base_models])
-        #result = np.divide(np.sum(results, axis=0),3)   # Sum predictions from all models
+        result = np.divide(np.sum(results, axis=0),2)   # Sum predictions from all models
         self.results = results  # Store results for later use
-        result = self.meta.predict(np.concatenate([infk,results.T], axis=1))  # Concatenate meta features with base model predictions
+        #result = self.meta.predict(np.concatenate([infk,results.T], axis=1))  # Concatenate meta features with base model predictions
         # Stack predictions and average them
         
         return result
     
     def compare(self, y_test):
-        print(self.results.shape)
-        print_results(self.results[0], y_test)
-        print_results(self.results[1], y_test)
-        print_results(self.results[2], y_test)
+        print(self.results.shape[0])
+        for i in range(self.results.shape[0]):
+            print_results(self.results[i], y_test)
         showme(self.results - y_test)
 
     def train_two(self, X_train=None, y_train=None):
@@ -101,7 +100,7 @@ class AverageRegressor:
         self.base_models = [
             ('knn', model_KNN(False, True, a, y_train)),
             ('kr', model_KRR(False, True, b, y_train)),
-            ('his', HIST_BOOST(False, False, c, y_train)),
+            #('his', HIST_BOOST(False, False, c, y_train)),
         ]
 
 
