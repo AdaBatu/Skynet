@@ -722,10 +722,6 @@ def try_reg():
 
 
 
-
-
-
-
 def model_GB(gridsearch=False, personalized_pre_processing = False, X_train=None, y_train=None):
     model_name = "GradientBoostingRegressor"
     random_state = 42
