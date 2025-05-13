@@ -2,7 +2,11 @@ import os
 from sklearn.impute import SimpleImputer
 from utils import load_config, print_results, save_results, load_custom_dataset, load_test_custom_dataset
 import numpy as np
+<<<<<<< Updated upstream
 import pandas as pd
+=======
+from skopt.space import Real, Integer, Categorical
+>>>>>>> Stashed changes
 # sklearn imports
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
@@ -12,8 +16,12 @@ from sklearn.metrics import r2_score
 from sklearn.metrics import mean_absolute_error, make_scorer
 from sklearn.model_selection import GridSearchCV
 import matplotlib.pyplot as plt
+<<<<<<< Updated upstream
 import time
 import pickle
+=======
+from skimage.feature import hog
+>>>>>>> Stashed changes
 import mplcursors
 from models import AverageRegressor, try_reg,stacking_reg,model_ADA,model_GB, model_KNN, model_R, model_RF, model_KRR, HIST_BOOST,model_log_linear, model_DYNAMIC_SELECTOR, showme,model_12
 
