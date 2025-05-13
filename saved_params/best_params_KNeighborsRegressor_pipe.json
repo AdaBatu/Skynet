@@ -1,5 +1,0 @@
-{
-    "regressor__n_neighbors": 2,
-    "regressor__p": 2,
-    "regressor__weights": "distance"
-}

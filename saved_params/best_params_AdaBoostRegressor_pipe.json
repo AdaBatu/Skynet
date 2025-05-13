@@ -1,6 +1,0 @@
-{
-    "regressor__estimator__max_depth": 17,
-    "regressor__learning_rate": 0.13716271904919733,
-    "regressor__loss": "square",
-    "regressor__n_estimators": 6
-}
