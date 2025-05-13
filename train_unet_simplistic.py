@@ -38,7 +38,7 @@ def train(
     print(f"[INFO]: Number of training epochs: {num_epochs}")
 
     # Choose Device
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") #if torch.cuda.is_available() else torch.device("cpu")
 
     # Define your Dataset and DataLoader
     # ETHMugsDataset 

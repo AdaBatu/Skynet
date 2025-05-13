@@ -38,7 +38,7 @@ def train(
     # print(f"[INFO]: Training batch size: {train_batch_size}")
 
     # Choose Device
-    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") #if torch.cuda.is_available() else torch.device("cpu")
 
     # TODO: Define your Dataset and DataLoader
     # ETHMugsDataset 
